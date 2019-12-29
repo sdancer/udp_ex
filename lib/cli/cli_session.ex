@@ -2,16 +2,35 @@ defmodule ClientSess do
     use GenServer
 
     def init() do
+        udpsocket = UdpServer.start 9908, self()
+
+        {a,b,c} = :erlang.now
+        sessionid = a*1000 + b
+
         state = %{
             remote_udp_endpoint: nil,
             tcp_procs: %{},
             next_conn_id: 0,
+            udp_proc: nil,
+            udpsocket: udpsocket,
+            sessionid: sessionid
         }
         send self(), :tick
         {:ok, state}
     end
 
+    def handle_info(:tick, state) do
+        :erlang.send_after 5000, self(), :tick
+
+        #send udp ping with session id
+
+        {:noreply, state}
+    end
+
     def handle_info({:udp_data, data}, state) do
+        IO.inspect {"received udp data", data}
+        #decode
+        #check is same session
         #get tcp process from id
         #send to tcp process
         {:noreply, state}
