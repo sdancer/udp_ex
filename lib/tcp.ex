@@ -9,7 +9,7 @@ defmodule Mitme.Acceptor do
     params = %{}
 
 
-    IO.puts "listen on port #{port} #{type} #{inspect uplink}"
+    IO.puts "listen on port #{port} "
     {:ok, listenSocket} = :gen_tcp.listen port, [
       {:ip, {0, 0, 0, 0}}, {:active, false}, {:reuseaddr, true}, {:nodelay, true}]
     {:ok, _} = :prim_inet.async_accept(listenSocket, -1)
