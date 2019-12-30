@@ -105,6 +105,22 @@ defmodule ClientSess do
         {:noreply, state}
     end
 
+    def handle_info({:udp_data, host, port, bin}, state) do
+        # {_, %{conn_id: next_conn_id}} = Enum.find state.tcp_procs, fn({_, aconn})-> aconn.proc == proc end
+        #
+        # send state.tcpuplink, {:send, <<
+        #     3, #close
+        #     next_conn_id :: 64-little,
+        # >>}
+
+        <<data_frame::64-little, rest::binary>> = bin
+
+        ack_data state, data_frame
+
+        {:noreply, state}
+    end
+
+
     def ack_data(state, data_frame) do
         send state.tcpuplink, {:send, <<
             4, #ack data
