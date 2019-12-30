@@ -16,7 +16,8 @@ defmodule UdpEx do
       if :os.getenv('CLIENT') != false do
           ClientSess.start
       else
-          spawn ServerSess, :init, []
+          pid = spawn ServerSess, :init, []
+          {:ok, pid}
       end
   end
 end
