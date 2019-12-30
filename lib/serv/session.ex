@@ -24,7 +24,7 @@ defmodule ServerSess do
     end
 
     def loop(state) do
-        dispatch_packets(state.remote_udp_endpoint, state)
+        state = dispatch_packets(state.remote_udp_endpoint, state)
 
         state = receive do
             {:add_con, conn_id, dest_host, dest_port} ->
@@ -66,9 +66,10 @@ defmodule ServerSess do
                 IO.inspect {__MODULE__, "tcp data", conn_id, d}
                 #add to the udp list
                 :ets.insert state.send_queue, {state.send_counter, d}
-                %{state | send_counter: state.send_counter + 1}
+                IO.inspect {__MODULE__, state.send_counter + 1}
+                %{state | send_counter: (state.send_counter + 1)}
 
-            {:tcp_connected, conn_id}
+            {:tcp_connected, conn_id} ->
                 #notify the other side
                 state
 
@@ -85,7 +86,7 @@ defmodule ServerSess do
                 IO.inspect {:received, a}
                 state
 
-        after 1 ->
+        after 100 ->
             state
         end
 
@@ -99,12 +100,12 @@ defmodule ServerSess do
         #do we have packets to send?
         #last ping?
         #pps ?
-        IO.inspect {state.last_send, state.send_counter}
-        
+        #IO.inspect {state.last_send, state.send_counter}
+
         if (state.last_send < state.send_counter) do
             case (:ets.lookup state.send_queue, state.last_send) do
                 [{_, data}] ->
-                    :gen_udp.send(state.socket, host, port, data)
+                    :gen_udp.send(state.socket, :binary.bin_to_list(host), port, data)
                 nil ->
                     nil
             end
