@@ -105,7 +105,7 @@ defmodule ServerSess do
         if (state.last_send < state.send_counter) do
             case (:ets.lookup state.send_queue, state.last_send) do
                 [{_, data}] ->
-                    :gen_udp.send(state.udpsocket, :binary.bin_to_list(host), port, data)
+                    :gen_udp.send(state.udpsocket, :binary.ntoa(host), port, data)
                 nil ->
                     nil
             end
