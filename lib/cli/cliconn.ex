@@ -43,7 +43,7 @@ defmodule CliConn do
             :gen_tcp.send state.socket, bin
             Map.merge state, %{send: offset + byte_size(bin)}
         else
-            IO.inspect {__MODULE__, :queing_data, offset}
+            IO.inspect {__MODULE__, :queing_data, offset, byte_size(bin)}
             :ets.insert state.packet_queue, {offset, bin}
             state
         end

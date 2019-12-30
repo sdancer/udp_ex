@@ -63,7 +63,7 @@ defmodule ServerSess do
                 %{state | procs: procs}
 
             {:tcp_data, conn_id, offset, d} ->
-                IO.inspect {__MODULE__, "tcp data", conn_id, d}
+                IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
                 #add to the udp list
                 send_counter = insert_chunks state.send_queue, {state.send_counter, {conn_id, offset, d}}
                 %{state | send_counter: send_counter}
@@ -106,7 +106,7 @@ defmodule ServerSess do
     def insert_chunks send_queue, {send_counter, {conn_id, offset, d}} do
         :ets.insert send_queue, {send_counter, {conn_id, offset, d}}
 
-        send_counter
+        send_counter + 1
     end
 
     def dispatch_packets(nil, state) do
