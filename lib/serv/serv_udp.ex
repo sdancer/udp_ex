@@ -16,7 +16,7 @@ defmodule ServerUdp do
 
        receive do
           {:udp, socket, host, port, bin} ->
-              IO.inspect {__MODULE__, "received", host, port, bin}
+              IO.inspect {__MODULE__, "received", client_session, host, port, bin}
               send client_session, {:udp_data, host, port, bin}
               IO.inspect :sent_sucess
        end
