@@ -35,7 +35,9 @@ defmodule ClientSess do
         :erlang.send_after 5000, self(), :tick
 
         #send udp ping with session id
-        :gen_udp.send state.udpsocket, :binary.bin_to_list(state.remotehost), state.remoteport, <<0::64-little>>
+        {a,b,c} = :erlang.now
+        curtime = a*1000000 + b
+        :gen_udp.send state.udpsocket, :binary.bin_to_list(state.remotehost), state.remoteport, <<curtime::64-little>>
 
         {:noreply, state}
     end

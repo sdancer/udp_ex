@@ -13,10 +13,12 @@ defmodule ServerUdp do
 
     def loop(socket, client_session) do
        :inet.setopts(socket, [{:active, :once}])
+
        receive do
           {:udp, socket, host, port, bin} ->
               IO.inspect {__MODULE__, "received", host, port, bin}
               send client_session, {:udp_data, host, port, bin}
+              IO.inspect :sent_sucess
        end
 
        __MODULE__.loop(socket, client_session)
