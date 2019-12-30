@@ -115,7 +115,7 @@ defmodule ClientSess do
 
         << packet_id::64-little, conn_id::64-little, data :: binary>> = bin
 
-        proc = Enum.find state.tcp_procs, fn({_, aconn})-> aconn.proc == proc end
+        proc = Map.get state.tcp_procs, conn_id, nil
         case proc do
             {_, %{proc: pid}} ->
                 send pid, {:send, data}
