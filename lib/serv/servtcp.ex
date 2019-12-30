@@ -10,19 +10,19 @@ defmodule ServTcp do
 
         rc4stream_d = :crypto.stream_init :rc4, "some_random_pass"
 
-        {:ok, _} = :gen_tcp.recv clientSocket, 0
+        {:ok, data} = :gen_tcp.recv clientSocket, 0
 
         {rc4stream_s, decoded} = :crypto.stream_encrypt rc4stream_d, data
         <<
             0, sessionid ::64-little, 0::64, 0::64, 0::64, 0::64,
         >> = decoded
         IO.inspect {__MODULE__, :got_session, sessionid}
-        :gen_tcp.send socket, "hello world"
+        :gen_tcp.send clientSocket, "hello world"
 
 
         :inet.setopts(clientSocket, [{:active, :true}, :binary])
 
-        state = Map.merge state, %{rc4stream_d: rc4stream_d}
+        state = Map.merge state, %{rc4stream_d: rc4stream_d, socket: clientSocket}
         {:noreply, state}
     end
 
