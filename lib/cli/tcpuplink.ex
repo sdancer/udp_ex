@@ -25,7 +25,7 @@ defmodule TcpUplink do
         {rc4stream_s, decoded} = :crypto.stream_encrypt rc4stream_s, <<
             0, state.sessionid ::64-little, 0::64, 0::64, 0::64, 0::64,
         >>
-        :gen_tcp.send serverSocket, decoded
+        :gen_tcp.send socket, decoded
         {:ok, _} = :gen_tcp.recv socket, 0
         #{rc4stream_s, decoded} = :crypto.stream_encrypt rc4stream_d, to_dec
 
