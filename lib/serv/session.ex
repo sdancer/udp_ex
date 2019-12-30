@@ -4,6 +4,8 @@ defmodule ServerSess do
         #has a uid
         #holds upstream tcp connections
         #holds a table for packets to send
+        Mitme.Acceptor.start_link %{port: 9090, module: ServTcp, session: self()}
+
         send_queue = :ets.new :send_queue, [:ordered_set]
 
         state = %{

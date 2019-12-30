@@ -1,8 +1,9 @@
 defmodule ClientSess do
     use GenServer
 
-    def init() do
+    def init(args) do
         udpsocket = UdpServer.start 9908, self()
+        Mitme.Acceptor.start_link %{port: 9080, module: CliConn, session: self()}
 
         {a,b,c} = :erlang.now
         sessionid = a*1000 + b
