@@ -113,9 +113,17 @@ defmodule ClientSess do
         #     next_conn_id :: 64-little,
         # >>}
 
-        <<data_frame::64-little, rest::binary>> = bin
+        << packet_id::64-little, conn_id::64-little, data :: binary>> = bin
 
-        ack_data state, data_frame
+        proc = Enum.find state.tcp_procs, fn({_, aconn})-> aconn.proc == proc end
+        case proc do
+            {_, %{proc: pid}} ->
+                send pid, {:send, data}
+            _ ->
+                nil
+        end
+
+        ack_data state, packet_id
 
         {:noreply, state}
     end
