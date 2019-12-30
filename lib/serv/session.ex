@@ -23,8 +23,12 @@ defmodule ServerSess do
         state = receive do
             {:tcp, d} ->
                 IO.inspect {d}
+                state
+            {:tcp_closed, _proc} ->
+                state
             a ->
                 IO.inspect {:received, a}
+                state
         after 1 ->
             state
         end
