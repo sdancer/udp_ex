@@ -76,6 +76,11 @@ defmodule ServerSess do
                 #notify the other side
                 state
 
+            {:udp_data, host, port, data} ->
+                #TODO: verify the sessionid?
+                #TODO: decrypt
+                %{state | remote_udp_endpoint: {host, port}}
+
             a ->
                 IO.inspect {:received, a}
                 state
@@ -83,7 +88,8 @@ defmodule ServerSess do
         after 1 ->
             state
         end
-        loop(state)
+        
+        __MODULE__.loop(state)
     end
 
     def dispatch_packets(nil, state) do
