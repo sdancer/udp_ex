@@ -7,7 +7,7 @@ defmodule ServerUdp do
     def server(port, client_session) do
        {:ok, socket} = :gen_udp.open(port, [:binary, {:active, false}])
        proc = spawn UdpServer, :loop, [socket, client_session]
-       :getn_udp.controlling_process socket, proc
+       :gen_udp.controlling_process socket, proc
 
        {:ok, socket}
     end
