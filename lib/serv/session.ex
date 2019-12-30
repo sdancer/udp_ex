@@ -89,7 +89,7 @@ defmodule ServerSess do
                 IO.inspect {:received, a}
                 state
 
-        after 100 ->
+        after 10 ->
             state
         end
 

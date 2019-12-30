@@ -29,7 +29,7 @@ defmodule ServTcp do
     def handle_info {:tcp, socket, bin}, state do
         {rc4stream_d, decoded} = :crypto.stream_encrypt state.rc4stream_d, bin
 
-        IO.inspect {__MODULE__, "got data", socket, decoded}
+        #IO.inspect {__MODULE__, "got data", socket, decoded}
 
         #send state.session, {:tcp_data, self(), decoded}
 

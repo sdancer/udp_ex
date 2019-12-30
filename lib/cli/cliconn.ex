@@ -110,9 +110,15 @@ defmodule CliConn do
     end
 
     def unfold_queue(state) do
-        #:ets.insert state.packet_queue, {offset, bin}
-        IO.inspect {__MODULE__, :should_unfold_queue}
-        state
+        case :ets.lookup(state.packet_queue, state.sent) do
+            [] ->
+                state
+            [{offset, bin}] ->
+                IO.inspect {__MODULE__, :unfolding_queue, offset, byte_size(bin)}
+                :ets.delete offset
+                :gen_tcp.send state.socket, bin
+                state = Map.merge state, %{sent: offset + byte_size(bin)}
+        end
     end
 
 end
