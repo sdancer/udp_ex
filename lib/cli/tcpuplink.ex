@@ -23,7 +23,7 @@ defmodule TcpUplink do
         {:ok, serverSocket} = :gen_tcp.connect :binary.bin_to_list(state.remotehost), state.remoteport, [{:active, false}, :binary]
 
         {rc4stream_s, decoded} = :crypto.stream_encrypt rc4stream_s, <<
-            0, sessionid::64-little, 0::64, 0::64, 0::64, 0::64,
+            0, state.sessionid ::64-little, 0::64, 0::64, 0::64, 0::64,
         >>
         {rc4stream_s, decoded} = :crypto.stream_encrypt rc4stream_d, to_dec
         :gen_tcp.send serverSocket, decoded
