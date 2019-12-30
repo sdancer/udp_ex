@@ -65,8 +65,8 @@ defmodule ServerSess do
             {:tcp_data, conn_id, offset, d} ->
                 IO.inspect {__MODULE__, "tcp data", conn_id, d}
                 #add to the udp list
-                :ets.insert state.send_queue, {state.send_counter, {conn_id, offset, d}}
-                %{state | send_counter: (state.send_counter + 1)}
+                send_counter = insert_chunks state.send_queue, {state.send_counter, {conn_id, offset, d}}
+                %{state | send_counter: send_counter}
 
             {:tcp_connected, conn_id} ->
                 #notify the other side
@@ -90,6 +90,17 @@ defmodule ServerSess do
         end
 
         __MODULE__.loop(state)
+    end
+
+    def insert_chunks send_queue, {send_counter, {conn_id, offset, <<d::binary-size(1000), rest::binary>>}} when byte_size(d) > 1000 do
+        :ets.insert send_queue, {send_counter, {conn_id, offset, d}}
+        insert_chunks(send_queue, {send_counter + 1, {conn_id, offset+1000, rest}})
+    end
+
+    def insert_chunks (send_queue, {send_counter, {conn_id, offset, d}} do
+        :ets.insert send_queue, {send_counter, {conn_id, offset, d}}
+
+        send_counter
     end
 
     def dispatch_packets(nil, state) do
