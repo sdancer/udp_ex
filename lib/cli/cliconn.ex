@@ -6,23 +6,38 @@ defmodule CliConn do
     end
 
     def handle_info({:pass_socket, clientSocket}, state) do
-        #what to do with the socket?
-        #notify the so orig dest to the session
-        {destAddrBin, destPort} = case state.listener_type do
+        IO.inspect "#{__MODULE__} got client connection"
+
+        listener_type = Map.get state, :listener_type, :nat #TODO: bad, don't default from non existent here
+        #validate at system entry
+
+        {destAddrBin, destPort} = case listener_type do
             :nat ->
                 get_original_destionation clientSocket
             :sock5 ->
                 sock5_handshake clientSocket
         end
 
-        IO.inspect {:got_socket_dest, destAddrBin, destPort}
+        IO.inspect {__MODULE__, :got_socket_dest, destAddrBin, destPort}
 
-        {:no_reply, state}
+        :inet.setopts(clientSocket, [{:active, :true}, :binary])
+
+        send state.session, {:tcp_add, self(), destAddrBin, destPort}
+        {:noreply, state}
     end
 
     def handle_info {:tcp, socket, bin}, state do
+        IO.inspect {"got data", socket, bin}
+
+        send state.session, {:tcp_data, self(), bin}
+
         #send to session
-        {:no_reply, state}
+        {:noreply, state}
+    end
+    def handle_info {:tcp_closed, socket}, state do
+        send state.session, {:tcp_closed, self()}
+
+        {:stop, :normal, nil}
     end
 
     def sock5_handshake clientSocket do

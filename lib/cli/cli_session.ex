@@ -1,12 +1,20 @@
 defmodule ClientSess do
     use GenServer
 
+    def start(args \\ %{}) do
+        GenServer.start __MODULE__, args
+    end
+
     def init(args) do
-        udpsocket = UdpServer.start 9908, self()
-        Mitme.Acceptor.start_link %{port: 9080, module: CliConn, session: self()}
+        remotehost = ""
+        remoteport = 9090
 
         {a,b,c} = :erlang.now
         sessionid = a*1000 + b
+
+        udpsocket = UdpServer.start 9908, self()
+        {:ok, tcpuplink} = TcpUplink.start {remotehost, remoteport}, sessionid, self()
+        Mitme.Acceptor.start_link %{port: 9080, module: CliConn, session: self()}
 
         state = %{
             remote_udp_endpoint: nil,
@@ -14,7 +22,8 @@ defmodule ClientSess do
             next_conn_id: 0,
             udp_proc: nil,
             udpsocket: udpsocket,
-            sessionid: sessionid
+            sessionid: sessionid,
+            tcpuplink: tcpuplink,
         }
         send self(), :tick
         {:ok, state}
@@ -42,11 +51,11 @@ defmodule ClientSess do
         {_, %{conn_id: next_conn_id}} = Enum.find state.tcp_procs, fn({_, aconn})-> aconn.proc == proc end
         #send to tcp uplink
 
-        send state.tcpuplink, <<
+        send state.tcpuplink, {:send, <<
             2, #data
             next_conn_id :: 64-little,
             byte_size(data)::32-little,
-        >> <> data
+        >> <> data}
 
         {:noreply, state}
     end
@@ -60,25 +69,25 @@ defmodule ClientSess do
             proc: proc, conn_id: next_conn_id
         }
 
-        send state.tcpuplink, <<
+        send state.tcpuplink, {:send, <<
             1, #connect
             next_conn_id :: 64-little,
             byte_size(dest_host),
             dest_host::binary,
             dest_port::16-little
-        >>
+        >>}
 
         state = %{state | next_conn_id: next_conn_id + 1, tcp_procs: tcp_procs}
         {:noreply, state}
     end
 
-    def handle_info({:tcp_close, proc}, state) do
+    def handle_info({:tcp_closed, proc}, state) do
         {_, %{conn_id: next_conn_id}} = Enum.find state.tcp_procs, fn({_, aconn})-> aconn.proc == proc end
 
-        send state.tcpuplink, <<
+        send state.tcpuplink, {:send, <<
             3, #close
             next_conn_id :: 64-little,
-        >>
+        >>}
 
         tcp_procs = Map.delete state.tcp_procs, next_conn_id
         state = %{state | tcp_procs: tcp_procs}

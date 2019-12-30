@@ -12,8 +12,7 @@ defmodule UdpEx do
       :world
 
   """
-  def hello do
-      
-    :world
+  def start(_,_) do
+    ClientSess.start
   end
 end
