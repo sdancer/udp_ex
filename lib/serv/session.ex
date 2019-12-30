@@ -109,7 +109,7 @@ defmodule ServerSess do
                 nil ->
                     nil
             end
-            %{state | lastsend: state.last_send + 1}
+            %{state | last_send: state.last_send + 1}
         else
             state
         end
