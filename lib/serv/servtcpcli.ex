@@ -22,7 +22,7 @@ defmodule ServTcpCli do
 
         send state.session, {:tcp_connected, state.conn_id}
 
-        {:noreply, state}
+        {:noreply, %{state | socket: socket}}
     end
 
     def handle_info({:tcp_close, socket}, state) do

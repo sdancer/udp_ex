@@ -5,8 +5,10 @@ defmodule ServerSess do
         #holds upstream tcp connections
         #holds a table for packets to send
         Mitme.Acceptor.start_link %{port: 9090, module: ServTcp, session: self()}
+        {:ok, udpsocket} = UdpServer.start 9090, self()
 
-        send_queue = :ets.new :send_queue, [:ordered_set]
+
+        send_queue = :ets.new :send_queue, [:ordered_set, :public, :named_table]
 
         state = %{
             remote_udp_endpoint: nil,
@@ -14,6 +16,7 @@ defmodule ServerSess do
             send_counter: 0,
             last_send: 0,
             procs: %{},
+            udpsocket: udpsocket,
         }
 
         #{:ok, state}
@@ -62,7 +65,7 @@ defmodule ServerSess do
             {:tcp_data, conn_id, d} ->
                 IO.inspect {__MODULE__, "tcp data", conn_id, d}
                 #add to the udp list
-                :ets.insert state.send_queue, {state.send_counter, }
+                :ets.insert state.send_queue, {state.send_counter, d}
                 %{state | send_counter: state.send_counter + 1}
 
             {:tcp_connected, conn_id}
@@ -76,22 +79,30 @@ defmodule ServerSess do
             a ->
                 IO.inspect {:received, a}
                 state
-                
+
         after 1 ->
             state
         end
         loop(state)
     end
 
-    def dispatch_packets(nil, state) do state end
+    def dispatch_packets(nil, state) do
+        state
+    end
     def dispatch_packets({host, port}, state) do
         #do we have packets to send?
         #last ping?
         #pps ?
-        bin = :ets.next state.send_queue
-
-        :gen_udp.send(state.socket, host, port, bin)
-
-        state
+        if (state.last_send < state.send_counter) do
+            case (:ets.lookup state.send_queue, state.last_send) do
+                [{_, data}] ->
+                    :gen_udp.send(state.socket, host, port, data)
+                nil ->
+                    nil
+            end
+            %{state | lastsend: state.last_send + 1}
+        else
+            state
+        end
     end
 end

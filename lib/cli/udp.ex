@@ -15,24 +15,9 @@ defmodule UdpServer do
        :inet.setopts(socket, [{:active, :once}])
        receive do
           {:udp, socket, host, port, bin} ->
-              IO.inspect {"received", bin}
-              send client_session, {:udp_data, bin}
+              IO.inspect {__MODULE__, "received", host, port, bin}
+              send client_session, {:udp_data, host, port, bin}
        end
        loop(socket, client_session)
-    end
-end
-
-defmodule UdpClient do
-    def client(data) do
-       {:ok, socket} = :gen_udp.open(0, [:binary])
-       :ok = :gen_udp.send(socket, "localhost", 4000, data)
-       receive do
-          {:udp, socket, _, _, bin} ->
-              IO.puts "got data"
-         after 2000 ->
-             IO.puts "timeout"
-       end
-
-       :gen_udp.close(socket)
     end
 end

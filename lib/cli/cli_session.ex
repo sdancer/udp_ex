@@ -12,11 +12,13 @@ defmodule ClientSess do
         {a,b,c} = :erlang.now
         sessionid = a*1000 + b
 
-        udpsocket = UdpServer.start 9908, self()
+        {:ok, udpsocket} = UdpServer.start 9908, self()
         {:ok, tcpuplink} = TcpUplink.start {remotehost, remoteport}, sessionid, self()
         Mitme.Acceptor.start_link %{port: 9080, module: CliConn, session: self()}
 
         state = %{
+            remotehost: remotehost,
+            remoteport: remoteport,
             remote_udp_endpoint: nil,
             tcp_procs: %{},
             next_conn_id: 0,
@@ -33,6 +35,7 @@ defmodule ClientSess do
         :erlang.send_after 5000, self(), :tick
 
         #send udp ping with session id
+        :gen_udp.send state.udpsocket, :binary.bin_to_list(state.remotehost), state.remoteport, <<0::64-little>>
 
         {:noreply, state}
     end
