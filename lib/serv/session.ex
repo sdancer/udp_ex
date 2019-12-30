@@ -50,6 +50,7 @@ defmodule ServerSess do
                 state
 
             {:req_again, conn_id, data_frame} ->
+                IO.inspect {__MODULE__, :req_again, conn_id, data_frame}
                 %{state | last_send: data_frame}
 
             {:rm_con, conn_id} ->
