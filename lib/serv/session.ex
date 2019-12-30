@@ -13,7 +13,8 @@ defmodule ServerSess do
             send_queue: send_queue
         }
 
-        {:ok, state}
+        #{:ok, state}
+        loop state
     end
 
     def loop(state) do
