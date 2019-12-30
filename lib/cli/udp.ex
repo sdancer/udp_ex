@@ -1,4 +1,4 @@
-defmodule UdpServer do
+defmodule UdpClient do
 
     def start(port, client_session) do
         server(port, client_session)
