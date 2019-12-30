@@ -26,6 +26,12 @@ defmodule ServTcp do
         {:noreply, state}
     end
 
+
+    def handle_info {:tcp_closed, socket}, state do
+
+        {:noreply, state}
+    end
+
     def handle_info {:tcp, socket, bin}, state do
         {rc4stream_d, decoded} = :crypto.stream_encrypt state.rc4stream_d, bin
 

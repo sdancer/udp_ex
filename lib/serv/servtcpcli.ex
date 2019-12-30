@@ -25,8 +25,8 @@ defmodule ServTcpCli do
         {:noreply, %{state | socket: socket}}
     end
 
-    def handle_info({:tcp_close, socket}, state) do
-        send state.session, {:tcp_close, state.conn_id}
+    def handle_info({:tcp_closed, socket}, state) do
+        send state.session, {:tcp_closed, state.conn_id}
 
         {:stop, :normal, state}
     end

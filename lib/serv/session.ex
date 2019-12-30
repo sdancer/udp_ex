@@ -56,16 +56,7 @@ defmodule ServerSess do
 
             {:rm_con, conn_id} ->
                 #kill a connection
-                proc = Map.get state.procs, conn_id, nil
-                case proc do
-                    %{proc: proc} ->
-                        Process.exit proc, :normal
-                    _ ->
-                        nil
-                end
-                procs = Map.delete state.procs, conn_id
-
-                %{state | procs: procs}
+                remove_conn conn_id, state
 
             {:tcp_data, conn_id, offset, d} ->
                 #IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
@@ -79,7 +70,8 @@ defmodule ServerSess do
 
             {:tcp_closed, conn_id} ->
                 #notify the other side
-                state
+
+                remove_conn conn_id, state
 
             {:udp_data, host, port, data} ->
                 #TODO: verify the sessionid?
@@ -95,6 +87,19 @@ defmodule ServerSess do
         end
 
         __MODULE__.loop(state)
+    end
+
+    def remove_conn conn_id, state do
+        proc = Map.get state.procs, conn_id, nil
+        case proc do
+            %{proc: proc} ->
+                Process.exit proc, :normal
+            _ ->
+                nil
+        end
+        procs = Map.delete state.procs, conn_id
+
+        %{state | procs: procs}
     end
 
     def insert_chunks send_queue, {send_counter, {conn_id, offset, ""}} do
