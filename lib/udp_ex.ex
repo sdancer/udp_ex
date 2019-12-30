@@ -13,6 +13,10 @@ defmodule UdpEx do
 
   """
   def start(_,_) do
-    ClientSess.start
+      if :os.getenv('CLIENT') != false do
+          ClientSess.start
+      else
+          spawn ServerSess, :init, []
+      end
   end
 end

@@ -6,7 +6,7 @@ defmodule ClientSess do
     end
 
     def init(args) do
-        remotehost = ""
+        remotehost = "52.79.227.216"
         remoteport = 9090
 
         {a,b,c} = :erlang.now
