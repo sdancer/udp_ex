@@ -6,7 +6,8 @@ defmodule ServerUdp do
 
     def server(port, client_session) do
        {:ok, socket} = :gen_udp.open(port, [:binary, {:active, false}])
-       spawn UdpServer, :loop, [socket, client_session]
+       proc = spawn UdpServer, :loop, [socket, client_session]
+       :getn_udp controlling_process socket, proc
 
        {:ok, socket}
     end
@@ -16,7 +17,7 @@ defmodule ServerUdp do
 
        receive do
           {:udp, socket, host, port, bin} ->
-              IO.inspect {__MODULE__, "received", client_session, host, port, bin}
+              IO.inspect {"received", client_session, host, port, bin}
               send client_session, {:udp_data, host, port, bin}
               IO.inspect :sent_sucess
        end
