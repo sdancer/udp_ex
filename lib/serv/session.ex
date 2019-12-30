@@ -62,10 +62,10 @@ defmodule ServerSess do
 
                 %{state | procs: procs}
 
-            {:tcp_data, conn_id, d} ->
+            {:tcp_data, conn_id, offset, d} ->
                 IO.inspect {__MODULE__, "tcp data", conn_id, d}
                 #add to the udp list
-                :ets.insert state.send_queue, {state.send_counter, {conn_id, d}}
+                :ets.insert state.send_queue, {state.send_counter, {conn_id, offset, d}}
                 %{state | send_counter: (state.send_counter + 1)}
 
             {:tcp_connected, conn_id} ->
@@ -103,8 +103,9 @@ defmodule ServerSess do
 
         if (state.last_send < state.send_counter) do
             case (:ets.lookup state.send_queue, state.last_send) do
-                [{packet_id, {conn_id, data}}] ->
-                    sdata = << packet_id::64-little, conn_id::64-little, data :: binary>>
+                [{packet_id, {conn_id, offset, data}}] ->
+                    sdata = << packet_id::64-little, conn_id::64-little,
+                               offset::64-little, data :: binary>>
                     :gen_udp.send(state.udpsocket, :inet.ntoa(host), port, sdata)
                 nil ->
                     nil

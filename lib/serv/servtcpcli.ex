@@ -32,8 +32,12 @@ defmodule ServTcpCli do
     end
 
     def handle_info({:tcp, socket, bin}, state) do
-        send state.session, {:tcp_data, state.conn_id, bin}
+        offset = Map.get state, :offset, 0
 
+        send state.session, {:tcp_data, state.conn_id, offset, bin}
+
+        state = Map.put state, :offset, offset + byte_size(bin)
+        
         {:noreply, state}
     end
 

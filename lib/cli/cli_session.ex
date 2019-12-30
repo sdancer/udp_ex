@@ -42,20 +42,6 @@ defmodule ClientSess do
         {:noreply, state}
     end
 
-    def handle_info({:udp_data, data}, state) do
-        IO.inspect {"received udp data", data}
-        #decode
-        #check is same session
-        #get tcp process from id
-        #send to tcp process
-
-        data_frame = 0
-
-        ack_data(state, data_frame)
-
-        {:noreply, state}
-    end
-
     def handle_info({:tcp_data, proc, data}, state) do
 
         {_, %{conn_id: next_conn_id}} = Enum.find state.tcp_procs, fn({_, aconn})-> aconn.proc == proc end
@@ -113,21 +99,24 @@ defmodule ClientSess do
         #     next_conn_id :: 64-little,
         # >>}
 
-        << packet_id::64-little, conn_id::64-little, data :: binary>> = bin
+        IO.inspect {"received udp data", bin}
 
-        proc = Map.get state.tcp_procs, conn_id, nil
-        case proc do
-            {_, %{proc: pid}} ->
-                send pid, {:send, data}
-            _ ->
-                nil
-        end
+        << packet_id::64-little, conn_id::64-little, offset::64-little, data :: binary>> = bin
 
         ack_data state, packet_id
 
+        proc = Map.get state.tcp_procs, conn_id, nil
+        case proc do
+            %{proc: pid} ->
+                send pid, {:queue, offset, data}
+            _ ->
+                IO.inspect {__MODULE__, :PROC_NOT_FOUND, state.tcp_procs}
+                nil
+        end
+
+
         {:noreply, state}
     end
-
 
     def ack_data(state, data_frame) do
         send state.tcpuplink, {:send, <<

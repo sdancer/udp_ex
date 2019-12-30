@@ -5,6 +5,12 @@ defmodule CliConn do
         GenServer.start __MODULE__, params
     end
 
+    def init(params) do
+        packet_queue = :ets.new :packet_queue, [:public, :ordered_set]
+        state = Map.merge params, %{packet_queue: packet_queue}
+        {:ok, state}
+    end
+
     def handle_info({:pass_socket, clientSocket}, state) do
         IO.inspect "#{__MODULE__} got client connection"
 
@@ -23,6 +29,25 @@ defmodule CliConn do
         :inet.setopts(clientSocket, [{:active, :true}, :binary])
 
         send state.session, {:tcp_add, self(), destAddrBin, destPort}
+
+        state = Map.merge state, %{
+            socket: clientSocket,
+            sent: 0,
+        }
+
+        {:noreply, state}
+    end
+
+    def handle_info {:queue, offset, bin}, state do
+        state = if (offset == state.sent) do
+            :gen_tcp.send state.socket, bin
+            Map.merge state, %{send: offset + byte_size(bin)}
+        else
+            IO.inspect {__MODULE__, :queing_data, offset}
+            :ets.insert state.packet_queue, {offset, bin}
+            state
+        end
+
         {:noreply, state}
     end
 
