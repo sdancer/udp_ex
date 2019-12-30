@@ -88,7 +88,7 @@ defmodule ServerSess do
         after 1 ->
             state
         end
-        
+
         __MODULE__.loop(state)
     end
 
@@ -99,6 +99,8 @@ defmodule ServerSess do
         #do we have packets to send?
         #last ping?
         #pps ?
+        IO.inspect {state.last_send, state.send_counter}
+        
         if (state.last_send < state.send_counter) do
             case (:ets.lookup state.send_queue, state.last_send) do
                 [{_, data}] ->

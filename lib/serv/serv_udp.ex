@@ -19,7 +19,6 @@ defmodule ServerUdp do
           {:udp, socket, host, port, bin} ->
               #IO.inspect {"received", client_session, host, port, bin}
               send client_session, {:udp_data, host, port, bin}
-              IO.inspect :sent_sucess
        end
 
        __MODULE__.loop(socket, client_session)
