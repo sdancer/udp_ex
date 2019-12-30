@@ -16,7 +16,7 @@ defmodule ServTcpCli do
     end
 
     def handle_info(:connect, state) do
-        IO.inspect {__MODULE__, :connecting}
+        IO.inspect {__MODULE__, :connecting, state.remotehost, state.remoteport}
 
         {:ok, socket} = :gen_tcp.connect :binary.bin_to_list(state.remotehost), state.remoteport, [{:active, true}, :binary]
 
@@ -37,7 +37,7 @@ defmodule ServTcpCli do
         send state.session, {:tcp_data, state.conn_id, offset, bin}
 
         state = Map.put state, :offset, offset + byte_size(bin)
-        
+
         {:noreply, state}
     end
 

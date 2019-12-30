@@ -14,13 +14,12 @@ defmodule CliConn do
     def handle_info({:pass_socket, clientSocket}, state) do
         IO.inspect "#{__MODULE__} got client connection"
 
-        listener_type = Map.get state, :listener_type, :nat #TODO: bad, don't default from non existent here
+        listener_type = Map.get state, :listener_type, :sock5 #TODO: bad, don't default from non existent here
         #validate at system entry
 
         {destAddrBin, destPort} = case listener_type do
             :nat ->
-                {d, p} = get_original_destionation clientSocket
-                if d == "127.0.0.1" do sock5_handshake clientSocket else {d, p} end
+                get_original_destionation clientSocket
             :sock5 ->
                 {d,p} = sock5_handshake clientSocket
                 sock5_notify_connected clientSocket

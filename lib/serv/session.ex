@@ -34,6 +34,7 @@ defmodule ServerSess do
                 %{state | procs: procs}
 
             {:con_data, conn_id, send_bytes} ->
+                IO.inspect {__MODULE__, :con_data, conn_id, byte_size(send_bytes)}
                 #send bytes to the tcp conn
                 proc = Map.get state.procs, conn_id, nil
                 case proc do
@@ -67,7 +68,7 @@ defmodule ServerSess do
                 %{state | procs: procs}
 
             {:tcp_data, conn_id, offset, d} ->
-                IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
+                #IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
                 #add to the udp list
                 send_counter = insert_chunks state.send_queue, {state.send_counter, {conn_id, offset, d}}
                 %{state | send_counter: send_counter}
