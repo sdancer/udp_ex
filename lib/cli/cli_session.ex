@@ -43,6 +43,11 @@ defmodule ClientSess do
         #check is same session
         #get tcp process from id
         #send to tcp process
+
+        data_frame = 0
+
+        ack_data(state, data_frame)
+
         {:noreply, state}
     end
 
@@ -94,4 +99,13 @@ defmodule ClientSess do
 
         {:noreply, state}
     end
+
+    def ack_data(state, data_frame) do
+        send state.tcpuplink, {:send, <<
+            4, #ack data
+            0 :: 64-little,
+            data_frame :: 64-little
+        >>}
+    end
+
 end
