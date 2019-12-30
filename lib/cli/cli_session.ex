@@ -26,6 +26,7 @@ defmodule ClientSess do
             udpsocket: udpsocket,
             sessionid: sessionid,
             tcpuplink: tcpuplink,
+            buckets: []
         }
         send self(), :tick
         {:ok, state}
