@@ -92,12 +92,18 @@ defmodule ServerSess do
         __MODULE__.loop(state)
     end
 
-    def insert_chunks send_queue, {send_counter, {conn_id, offset, <<d::binary-size(1000), rest::binary>>}} when byte_size(d) > 1000 do
+    def insert_chunks send_queue, {send_counter, {conn_id, offset, ""}} do
+        send_counter
+    end
+
+
+
+    def insert_chunks send_queue, {send_counter, {conn_id, offset, <<d::binary-size(1000), rest::binary>>}} do
         :ets.insert send_queue, {send_counter, {conn_id, offset, d}}
         insert_chunks(send_queue, {send_counter + 1, {conn_id, offset+1000, rest}})
     end
 
-    def insert_chunks (send_queue, {send_counter, {conn_id, offset, d}} do
+    def insert_chunks send_queue, {send_counter, {conn_id, offset, d}} do
         :ets.insert send_queue, {send_counter, {conn_id, offset, d}}
 
         send_counter
