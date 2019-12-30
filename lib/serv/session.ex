@@ -128,7 +128,7 @@ defmodule ServerSess do
                     sdata = << packet_id::64-little, conn_id::64-little,
                                offset::64-little, data :: binary>>
                     :gen_udp.send(state.udpsocket, :inet.ntoa(host), port, sdata)
-                nil ->
+                [] ->
                     nil
             end
             %{state | last_send: state.last_send + 1}

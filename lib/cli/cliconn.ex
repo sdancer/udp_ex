@@ -19,9 +19,12 @@ defmodule CliConn do
 
         {destAddrBin, destPort} = case listener_type do
             :nat ->
-                get_original_destionation clientSocket
+                {d, p} = get_original_destionation clientSocket
+                if d == "127.0.0.1" do sock5_handshake clientSocket else {d, p} end
             :sock5 ->
-                sock5_handshake clientSocket
+                {d,p} = sock5_handshake clientSocket
+                sock5_notify_connected clientSocket
+                {d,p}
         end
 
         IO.inspect {__MODULE__, :got_socket_dest, destAddrBin, destPort}
