@@ -45,7 +45,7 @@ defmodule TcpUplink do
     end
 
     def handle_info({:send, data}, state) do
-        IO.inspect {:should_send_data, data}
+        #IO.inspect {:should_send_data, data}
 
         {rc4stream_s, encoded} = :crypto.stream_encrypt state.rc4stream_s, data
 

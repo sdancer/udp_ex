@@ -97,6 +97,15 @@ defmodule ServTcp do
                 send state.session, {:ack_data, conn_id, data_frame}
                 proc_data(rest, state)
 
+            <<
+                5, #ack data
+                conn_id :: 64-little,
+                data_frame :: 64-little,
+                rest::binary
+            >> ->
+                send state.session, {:req_again, conn_id, data_frame}
+                proc_data(rest, state)
+
             other ->
                 state = Map.put state, :buff, other
         end

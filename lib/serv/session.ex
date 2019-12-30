@@ -45,9 +45,12 @@ defmodule ServerSess do
 
                 state
 
-            {:ack_data, conn_id, data_num} ->
-                :ets.delete state.send_queue, data_num
+            {:ack_data, conn_id, data_frame} ->
+                :ets.delete state.send_queue, data_frame
                 state
+
+            {:req_again, conn_id, data_frame} ->
+                %{state | last_send: data_frame}
 
             {:rm_con, conn_id} ->
                 #kill a connection

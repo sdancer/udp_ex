@@ -41,9 +41,10 @@ defmodule CliConn do
     def handle_info {:queue, offset, bin}, state do
         state = if (offset == state.sent) do
             :gen_tcp.send state.socket, bin
-            Map.merge state, %{send: offset + byte_size(bin)}
+            state = Map.merge state, %{sent: offset + byte_size(bin)}
+            unfold_queue(state)
         else
-            IO.inspect {__MODULE__, :queing_data, offset, byte_size(bin)}
+            IO.inspect {__MODULE__, :queing_data, state.sent, offset, byte_size(bin)}
             :ets.insert state.packet_queue, {offset, bin}
             state
         end
@@ -106,6 +107,12 @@ defmodule CliConn do
         destAddr = {a,b,c,d}
         destAddrBin = :unicode.characters_to_binary(:inet_parse.ntoa(destAddr))
         {destAddrBin, destPort}
+    end
+
+    def unfold_queue(state) do
+        #:ets.insert state.packet_queue, {offset, bin}
+        IO.inspect {__MODULE__, :should_unfold_queue}
+        state
     end
 
 end
