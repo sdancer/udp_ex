@@ -25,12 +25,9 @@ defmodule TcpUplink do
         {rc4stream_s, decoded} = :crypto.stream_encrypt rc4stream_s, <<
             0, state.sessionid ::64-little, 0::64, 0::64, 0::64, 0::64,
         >>
-        {rc4stream_s, decoded} = :crypto.stream_encrypt rc4stream_d, to_dec
         :gen_tcp.send serverSocket, decoded
         {:ok, _} = :gen_tcp.recv serverSocket, 0
-        #send initial rc4 key
-        #send session id
-        #receive hello
+        #{rc4stream_s, decoded} = :crypto.stream_encrypt rc4stream_d, to_dec
 
         state = Map.merge state, %{
             rc4stream_d: rc4stream_d,
