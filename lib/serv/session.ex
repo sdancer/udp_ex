@@ -5,7 +5,7 @@ defmodule ServerSess do
         #holds upstream tcp connections
         #holds a table for packets to send
         Mitme.Acceptor.start_link %{port: 9090, module: ServTcp, session: self()}
-        {:ok, udpsocket} = UdpServer.start 9090, self()
+        {:ok, udpsocket} = ServerUdp.start 9090, self()
 
 
         send_queue = :ets.new :send_queue, [:ordered_set, :public, :named_table]
