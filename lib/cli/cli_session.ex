@@ -222,7 +222,7 @@ defmodule ClientSess do
     def test() do
         [{0,0}] = ClientSess.add_to_sparse [], [], 0
 
-        s = ClientSess.add_to_sparse [], [], 0
+        s = ClientSess.add_to_sparse [], [], 1
         IO.inspect s
         s = ClientSess.add_to_sparse [], s, 3
         IO.inspect s
@@ -252,6 +252,9 @@ defmodule ClientSess do
         IO.inspect s
 
         s = ClientSess.add_to_sparse [], s, 9
+        IO.inspect s
+
+        s = ClientSess.add_to_sparse [], s, 0
         IO.inspect s
     end
 end

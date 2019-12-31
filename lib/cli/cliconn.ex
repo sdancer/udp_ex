@@ -45,7 +45,8 @@ defmodule CliConn do
         {:stop, :normal, state}
     end
 
-    def handle_info({:queue, offset, bin}, state = %{sent: sent}) when offset < sent do
+    def handle_info({:queue, offset, _bin}, state = %{sent: sent}) when offset < sent do
+        IO.inspect {:discarted_queue_packet, offset, sent}
         {:noreply, state}
     end
 

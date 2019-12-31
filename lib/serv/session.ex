@@ -62,6 +62,7 @@ defmodule ServerSess do
                 #IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
                 #add to the udp list
                 send_counter = insert_chunks state.send_queue, {state.send_counter, {conn_id, offset, d}}
+                state = update_lastsend state, send_counter
                 %{state | send_counter: send_counter}
 
             {:tcp_connected, conn_id} ->
@@ -73,6 +74,7 @@ defmodule ServerSess do
                 IO.inspect {__MODULE__, :conn_closed, conn_id}
                 state = remove_conn conn_id, state
                 send_counter = insert_close state.send_queue, {state.send_counter, conn_id}
+                state = update_lastsend state, send_counter
                 %{state | send_counter: send_counter}
 
             {:udp_data, host, port, data} ->
@@ -142,8 +144,10 @@ defmodule ServerSess do
         #last ping?
         #pps ?
         #IO.inspect {state.last_send, state.send_counter}
+        if state.last_send == :"$end_of_table" do
 
-        if (state.last_send < state.send_counter) do
+        end
+        if (state.last_send <= state.send_counter) do
             case (:ets.lookup state.send_queue, state.last_send) do
                 [{packet_id, {conn_id, data}}] ->
                     sdata = << packet_id::64-little, data :: binary>>
@@ -152,13 +156,18 @@ defmodule ServerSess do
                     nil
             end
 
-            last_send = case :ets.next(state.send_queue, state.last_send) do
-                :"$end_of_table" -> state.last_send
-                a -> a
-            end
+            last_send = :ets.next(state.send_queue, state.last_send)
+
             %{state | last_send: last_send}
         else
             state
         end
+    end
+    
+    def update_lastsend(state = %{last_send: :"$end_of_table"}, send_queue) do
+        Map.put state, :last_send, send_queue
+    end
+    def update_lastsend(state, _send_queue) do
+        state
     end
 end
