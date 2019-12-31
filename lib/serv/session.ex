@@ -15,6 +15,7 @@ defmodule ServerSess do
             send_queue: send_queue,
             send_counter: 0,
             last_send: 0,
+            last_reset: {0,0,0},
             procs: %{},
             udpsocket: udpsocket,
         }
@@ -144,8 +145,13 @@ defmodule ServerSess do
         #last ping?
         #pps ?
         #IO.inspect {state.last_send, state.send_counter}
-        if state.last_send == :"$end_of_table" do
+        last_reset = Map.get state, :last_reset, {0,0,0}
+        now = :erlang.timestamp
 
+        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(last_reset, now) > 100000) do
+            %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
+        else
+            state
         end
         if (state.last_send <= state.send_counter) do
             case (:ets.lookup state.send_queue, state.last_send) do
@@ -163,7 +169,7 @@ defmodule ServerSess do
             state
         end
     end
-    
+
     def update_lastsend(state = %{last_send: :"$end_of_table"}, send_queue) do
         Map.put state, :last_send, send_queue
     end
