@@ -34,7 +34,7 @@ defmodule ServerSess do
                 %{state | procs: procs}
 
             {:con_data, conn_id, send_bytes} ->
-                IO.inspect {__MODULE__, :con_data, conn_id, byte_size(send_bytes)}
+                #IO.inspect {__MODULE__, :con_data, conn_id, byte_size(send_bytes)}
                 #send bytes to the tcp conn
                 proc = Map.get state.procs, conn_id, nil
                 case proc do
@@ -82,7 +82,7 @@ defmodule ServerSess do
                 IO.inspect {:received, a}
                 state
 
-        after 10 ->
+        after 1 ->
             state
         end
 
@@ -131,7 +131,7 @@ defmodule ServerSess do
         if (state.last_send < state.send_counter) do
             case (:ets.lookup state.send_queue, state.last_send) do
                 [{packet_id, {conn_id, offset, data}}] ->
-                    sdata = << packet_id::64-little, conn_id::64-little,
+                    sdata = << packet_id::64-little, 1, conn_id::64-little,
                                offset::64-little, data :: binary>>
                     :gen_udp.send(state.udpsocket, :inet.ntoa(host), port, sdata)
                 [] ->

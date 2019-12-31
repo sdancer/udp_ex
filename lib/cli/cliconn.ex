@@ -40,13 +40,22 @@ defmodule CliConn do
         {:noreply, state}
     end
 
+    def handle_info(:close_conn, state = %{sent: sent}) do
+        :gen_tcp.close state.socket
+        {:stop, :normal, state}
+    end
+
+    def handle_info({:queue, offset, bin}, state = %{sent: sent}) when offset < sent do
+        {:noreply, state}
+    end
+
     def handle_info {:queue, offset, bin}, state do
         state = if (offset == state.sent) do
             :gen_tcp.send state.socket, bin
             state = Map.merge state, %{sent: offset + byte_size(bin)}
             unfold_queue(state)
         else
-            IO.inspect {__MODULE__, :queing_data, state.sent, offset, byte_size(bin)}
+            #IO.inspect {__MODULE__, :queing_data, state.sent, offset, byte_size(bin)}
             :ets.insert state.packet_queue, {offset, bin}
             state
         end
@@ -55,7 +64,7 @@ defmodule CliConn do
     end
 
     def handle_info {:tcp, socket, bin}, state do
-        IO.inspect {"got data", socket, bin}
+        #IO.inspect {"got data", socket, bin}
 
         send state.session, {:tcp_data, self(), bin}
 
@@ -116,10 +125,11 @@ defmodule CliConn do
             [] ->
                 state
             [{offset, bin}] ->
-                IO.inspect {__MODULE__, :unfolding_queue, offset, byte_size(bin)}
-                :ets.delete offset
+                #IO.inspect {__MODULE__, :unfolding_queue, offset, byte_size(bin)}
+                :ets.delete state.packet_queue, offset
                 :gen_tcp.send state.socket, bin
                 state = Map.merge state, %{sent: offset + byte_size(bin)}
+                unfold_queue(state)
         end
     end
 

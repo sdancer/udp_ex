@@ -26,7 +26,8 @@ defmodule ClientSess do
             udpsocket: udpsocket,
             sessionid: sessionid,
             tcpuplink: tcpuplink,
-            buckets: []
+            buckets: [],
+            last_req_again: {0,0,0},
         }
         send self(), :tick
         {:ok, state}
@@ -102,20 +103,35 @@ defmodule ClientSess do
 
         #IO.inspect {"received udp data", bin}
 
-        << packet_id::64-little, conn_id::64-little, offset::64-little, data :: binary>> = bin
+        << packet_id::64-little, data :: binary>> = bin
 
         ack_data state, packet_id
 
         state = Map.put state, :buckets, add_to_sparse([], state.buckets, packet_id)
 
-        case state.buckets do
-            [{_x, 0}] ->
-                :nothing
-            other ->
-                {a, b} = :lists.last other
-                a = if b != 0 do 0 else a + 1 end
-                req_again state, a
+        last_req_again = state.last_req_again
+        now = :erlang.timestamp
+        state = if (:timer.now_diff(now, last_req_again) > 250000) do
+            #IO.inspect state.buckets
+            case state.buckets do
+                [{_x, 0}] ->
+                    :nothing
+                other ->
+                    {a, b} = :lists.last other
+                    a = if b != 0 do 0 else a + 1 end
+                    req_again state, a
+            end
+            state = Map.put state, :last_req_again, now
+        else
+            state
         end
+
+        state = proc_udp_packet(data, state)
+
+        {:noreply, state}
+    end
+
+    def proc_udp_packet(<<1, conn_id::64-little, offset::64-little, data :: binary>>, state) do
 
         proc = Map.get state.tcp_procs, conn_id, nil
         case proc do
@@ -126,8 +142,25 @@ defmodule ClientSess do
                 nil
         end
 
+        state
+    end
 
-        {:noreply, state}
+    def proc_udp_packet(<<3, conn_id::64-little>>, state) do
+        <<conn_id::64-little>> = bin
+
+        proc = Map.get state.tcp_procs, conn_id, nil
+        case proc do
+            %{proc: pid} ->
+                send pid, :close_conn
+            _ ->
+                #IO.inspect {__MODULE__, :PROC_NOT_FOUND, state.tcp_procs}
+                nil
+        end
+
+        tcp_procs = Map.delete state.tcp_procs, next_conn_id
+        state = %{state | tcp_procs: tcp_procs}
+
+        state
     end
 
     def ack_data(state, data_frame) do

@@ -20,7 +20,8 @@ defmodule TcpUplink do
         rc4stream_s = :crypto.stream_init :rc4, "some_random_pass"
         rc4stream_d = :crypto.stream_init :rc4, "some_random_pass"
 
-        {:ok, socket} = :gen_tcp.connect :binary.bin_to_list(state.remotehost), state.remoteport, [{:active, false}, :binary]
+        {:ok, socket} = :gen_tcp.connect :binary.bin_to_list(state.remotehost), state.remoteport, [
+            {:nodelay, true}, {:linger, {true, 0}}, {:active, false}, :binary]
 
         {rc4stream_s, decoded} = :crypto.stream_encrypt rc4stream_s, <<
             0, state.sessionid ::64-little, 0::64, 0::64, 0::64, 0::64,
