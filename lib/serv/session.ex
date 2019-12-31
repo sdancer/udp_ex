@@ -149,11 +149,14 @@ defmodule ServerSess do
         now = :erlang.timestamp
 
         state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(last_reset, now) > 100000) do
+            IO.inspect {__MODULE__, :reset, :ets.first(state.send_queue)}
             %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
         else
             state
         end
         if (state.last_send <= state.send_counter) do
+            IO.inspect {__MODULE__, :sending, state.last_send, state.send_counter}
+
             case (:ets.lookup state.send_queue, state.last_send) do
                 [{packet_id, {conn_id, data}}] ->
                     sdata = << packet_id::64-little, data :: binary>>
@@ -171,9 +174,11 @@ defmodule ServerSess do
     end
 
     def update_lastsend(state = %{last_send: :"$end_of_table"}, send_queue) do
-        Map.put state, :last_send, send_queue
+        IO.inspect {__MODULE__, :reset, send_queue}
+        Map.put state, :last_send, send_queue - 1
     end
-    def update_lastsend(state, _send_queue) do
+    def update_lastsend(state, send_queue) do
+        IO.inspect {__MODULE__, :noreset, send_queue}
         state
     end
 end
