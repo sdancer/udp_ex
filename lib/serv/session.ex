@@ -151,7 +151,12 @@ defmodule ServerSess do
                 [] ->
                     nil
             end
-            %{state | last_send: state.last_send + 1}
+
+            last_send = case :ets.next(state.send_queue, state.last_send) do
+                :"$end_of_table" -> state.last_send
+                a -> a
+            end
+            %{state | last_send: last_send}
         else
             state
         end

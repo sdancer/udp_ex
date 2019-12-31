@@ -12,7 +12,7 @@ defmodule CliConn do
     end
 
     def handle_info({:pass_socket, clientSocket}, state) do
-        IO.inspect "#{__MODULE__} got client connection"
+        #IO.inspect {__MODULE__, "got client connection"}
 
         listener_type = Map.get state, :listener_type, :sock5 #TODO: bad, don't default from non existent here
         #validate at system entry
@@ -26,7 +26,7 @@ defmodule CliConn do
                 {d,p}
         end
 
-        IO.inspect {__MODULE__, :got_socket_dest, destAddrBin, destPort}
+        #IO.inspect {__MODULE__, :got_socket_dest, destAddrBin, destPort}
 
         :inet.setopts(clientSocket, [{:active, :true}, :binary])
 

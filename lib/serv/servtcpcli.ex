@@ -18,11 +18,17 @@ defmodule ServTcpCli do
     def handle_info(:connect, state) do
         IO.inspect {__MODULE__, :connecting, state.remotehost, state.remoteport}
 
-        {:ok, socket} = :gen_tcp.connect :binary.bin_to_list(state.remotehost), state.remoteport, [{:active, true}, :binary]
+        result = :gen_tcp.connect :binary.bin_to_list(state.remotehost), state.remoteport, [{:active, true}, :binary]
+        case result do
+            {:error, :nxdomain} ->
+                send state.session, {:tcp_closed, state.conn_id}
 
-        send state.session, {:tcp_connected, state.conn_id}
+                {:stop, :normal, state}
+            {:ok, socket} ->
+                send state.session, {:tcp_connected, state.conn_id}
 
-        {:noreply, %{state | socket: socket}}
+                {:noreply, %{state | socket: socket}}
+        end
     end
 
     def handle_info({:tcp_closed, socket}, state) do
