@@ -109,12 +109,18 @@ defmodule ServerSess do
 
 
     def insert_chunks send_queue, {send_counter, {conn_id, offset, <<d::binary-size(1000), rest::binary>>}} do
-        :ets.insert send_queue, {send_counter, {conn_id, offset, d}}
+        data = <<1, conn_id::64-little,
+                   offset::64-little, d::binary>>
+
+        :ets.insert send_queue, {send_counter, {conn_id, offset, data}}
         insert_chunks(send_queue, {send_counter + 1, {conn_id, offset+1000, rest}})
     end
 
     def insert_chunks send_queue, {send_counter, {conn_id, offset, d}} do
-        :ets.insert send_queue, {send_counter, {conn_id, offset, d}}
+        data = <<1, conn_id::64-little,
+                   offset::64-little, d::binary>>
+
+       :ets.insert send_queue, {send_counter, {conn_id, offset, data}}
 
         send_counter + 1
     end
@@ -131,8 +137,7 @@ defmodule ServerSess do
         if (state.last_send < state.send_counter) do
             case (:ets.lookup state.send_queue, state.last_send) do
                 [{packet_id, {conn_id, offset, data}}] ->
-                    sdata = << packet_id::64-little, 1, conn_id::64-little,
-                               offset::64-little, data :: binary>>
+                    sdata = << packet_id::64-little, data :: binary>>
                     :gen_udp.send(state.udpsocket, :inet.ntoa(host), port, sdata)
                 [] ->
                     nil

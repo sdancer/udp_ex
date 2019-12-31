@@ -146,8 +146,6 @@ defmodule ClientSess do
     end
 
     def proc_udp_packet(<<3, conn_id::64-little>>, state) do
-        <<conn_id::64-little>> = bin
-
         proc = Map.get state.tcp_procs, conn_id, nil
         case proc do
             %{proc: pid} ->
@@ -157,7 +155,7 @@ defmodule ClientSess do
                 nil
         end
 
-        tcp_procs = Map.delete state.tcp_procs, next_conn_id
+        tcp_procs = Map.delete state.tcp_procs, conn_id
         state = %{state | tcp_procs: tcp_procs}
 
         state
