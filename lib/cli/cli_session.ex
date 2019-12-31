@@ -157,7 +157,7 @@ defmodule ClientSess do
     end
 
     def proc_udp_packet(<<3, conn_id::64-little, sent::64-little>>, state) do
-        ignore
+
         proc = Map.get state.tcp_procs, conn_id, nil
         case proc do
             %{proc: pid} ->
