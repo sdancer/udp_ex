@@ -56,7 +56,8 @@ defmodule ClientSess do
                     byte_size(data)::32-little,
                 >> <> data}
             _ ->
-                send proc, :close_conn
+                Process.exit proc, :normal
+                IO.inspect {__MODULE__, :zombi_conn_data, proc}
         end
 
         {:noreply, state}
@@ -155,18 +156,16 @@ defmodule ClientSess do
         state
     end
 
-    def proc_udp_packet(<<3, conn_id::64-little>>, state) do
+    def proc_udp_packet(<<3, conn_id::64-little, sent::64-little>>, state) do
+        ignore
         proc = Map.get state.tcp_procs, conn_id, nil
         case proc do
             %{proc: pid} ->
-                send pid, :close_conn
+                send pid, {:close_conn, sent}
             _ ->
                 #IO.inspect {__MODULE__, :PROC_NOT_FOUND, state.tcp_procs}
                 nil
         end
-
-        tcp_procs = Map.delete state.tcp_procs, conn_id
-        state = %{state | tcp_procs: tcp_procs}
 
         state
     end

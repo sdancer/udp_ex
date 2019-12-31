@@ -20,7 +20,7 @@ defmodule ServTcpCli do
 
         result = :gen_tcp.connect :binary.bin_to_list(state.remotehost), state.remoteport, [{:active, true}, :binary]
         case result do
-            {:error, :nxdomain} ->
+            {:error, _} ->
                 send state.session, {:tcp_closed, state.conn_id}
 
                 {:stop, :normal, state}
@@ -32,7 +32,7 @@ defmodule ServTcpCli do
     end
 
     def handle_info({:tcp_closed, socket}, state) do
-        send state.session, {:tcp_closed, state.conn_id}
+        send state.session, {:tcp_closed, state.conn_id, state.offset}
 
         {:stop, :normal, state}
     end

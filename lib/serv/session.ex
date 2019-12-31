@@ -70,11 +70,11 @@ defmodule ServerSess do
                 #notify the other side
                 state
 
-            {:tcp_closed, conn_id} ->
+            {:tcp_closed, conn_id, offset} ->
                 #notify the other side
                 IO.inspect {__MODULE__, :conn_closed, conn_id}
                 state = remove_conn conn_id, state
-                send_counter = insert_close state.send_queue, {state.send_counter, conn_id}
+                send_counter = insert_close state.send_queue, {state.send_counter, conn_id, offset}
                 state = update_lastsend state, send_counter
                 %{state | send_counter: send_counter}
 
@@ -112,8 +112,8 @@ defmodule ServerSess do
     end
 
 
-    def insert_close send_queue, {send_counter, conn_id} do
-        data = <<3, conn_id::64-little>>
+    def insert_close send_queue, {send_counter, conn_id, offset} do
+        data = <<3, conn_id::64-little, offset::64-little,>>
 
        :ets.insert send_queue, {send_counter, {conn_id, data}}
 
@@ -147,14 +147,13 @@ defmodule ServerSess do
         #IO.inspect {state.last_send, state.send_counter}
         last_reset = Map.get state, :last_reset, {0,0,0}
         now = :erlang.timestamp
-
-        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(last_reset, now) > 100000) do
-            IO.inspect {__MODULE__, :reset, :ets.first(state.send_queue)}
+        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(now, last_reset) > 100000) do
+            #IO.inspect {__MODULE__, :reset, :ets.first(state.send_queue)}
             %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
         else
             state
         end
-        if (state.last_send <= state.send_counter) do
+        if (state.last_send < state.send_counter) do
             IO.inspect {__MODULE__, :sending, state.last_send, state.send_counter}
 
             case (:ets.lookup state.send_queue, state.last_send) do
@@ -174,11 +173,11 @@ defmodule ServerSess do
     end
 
     def update_lastsend(state = %{last_send: :"$end_of_table"}, send_queue) do
-        IO.inspect {__MODULE__, :reset, send_queue}
+        #IO.inspect {__MODULE__, :reset, send_queue}
         Map.put state, :last_send, send_queue - 1
     end
     def update_lastsend(state, send_queue) do
-        IO.inspect {__MODULE__, :noreset, send_queue}
+        #IO.inspect {__MODULE__, :noreset, send_queue}
         state
     end
 end
