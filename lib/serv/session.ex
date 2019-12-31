@@ -70,8 +70,10 @@ defmodule ServerSess do
 
             {:tcp_closed, conn_id} ->
                 #notify the other side
-
-                remove_conn conn_id, state
+                IO.inspect {__MODULE__, :conn_closed, conn_id}
+                state = remove_conn conn_id, state
+                send_counter = insert_close state.send_queue, {state.send_counter, conn_id}
+                %{state | send_counter: send_counter}
 
             {:udp_data, host, port, data} ->
                 #TODO: verify the sessionid?

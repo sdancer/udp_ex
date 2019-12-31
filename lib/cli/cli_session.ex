@@ -80,15 +80,21 @@ defmodule ClientSess do
     end
 
     def handle_info({:tcp_closed, proc}, state) do
-        {_, %{conn_id: next_conn_id}} = Enum.find state.tcp_procs, fn({_, aconn})-> aconn.proc == proc end
+        s = Enum.find state.tcp_procs, fn({_, aconn})-> aconn.proc == proc end
+        case s do
+            {_, %{conn_id: next_conn_id}} ->
 
-        send state.tcpuplink, {:send, <<
-            3, #close
-            next_conn_id :: 64-little,
-        >>}
+                send state.tcpuplink, {:send, <<
+                    3, #close
+                    next_conn_id :: 64-little,
+                >>}
 
-        tcp_procs = Map.delete state.tcp_procs, next_conn_id
-        state = %{state | tcp_procs: tcp_procs}
+                tcp_procs = Map.delete state.tcp_procs, next_conn_id
+                state = %{state | tcp_procs: tcp_procs}
+
+            _ ->
+                nil
+        end
 
         {:noreply, state}
     end
