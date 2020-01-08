@@ -116,13 +116,23 @@ defmodule ClientSess do
 
         << packet_id::64-little, data :: binary>> = bin
 
-        ack_data state, packet_id
+        {res, nbuckets} = add_to_sparse([], state.buckets, packet_id)
+        case res do
+            :ok ->
+                ack_data state, packet_id
+            _ ->
+                nil
+        end
 
-        state = Map.put state, :buckets, add_to_sparse([], state.buckets, packet_id)
+        state = Map.put state, :buckets, nbuckets
+
+
 
         last_req_again = state.last_req_again
         now = :erlang.timestamp
-        state = if (:timer.now_diff(now, last_req_again) > 250000) do
+        #if congestion too high, make the retry req 1 s
+        state = if (:timer.now_diff(now, last_req_again) > 500000) do
+            IO.inspect state.buckets
             IO.inspect {:req_again, now}
             case state.buckets do
                 [{_x, 0}] ->
@@ -187,19 +197,19 @@ defmodule ClientSess do
     end
 
     def add_to_sparse(h, [], packetid) do
-        merge_sparse h, [{packetid, packetid}]
+        {:ok, merge_sparse(h, [{packetid, packetid}])}
     end
 
     def add_to_sparse(h, [{s0, s1} | t] = origt, packetid) when packetid <= s0 and packetid >= s1 do
-        merge_sparse h, origt
+        {:already_exists, merge_sparse(h, origt)}
     end
 
     def add_to_sparse(h, [{s0, s1} | t], packetid) when packetid == s0 + 1 do
-        merge_sparse h, [{packetid, s1} | t]
+        {:ok, merge_sparse(h, [{packetid, s1} | t])}
     end
 
     def add_to_sparse(h, [{s0, s1} | t], packetid) when packetid > s0 do
-        merge_sparse h, [{packetid, packetid}, {s0, s1} | t]
+        {:ok, merge_sparse(h, [{packetid, packetid}, {s0, s1} | t])}
     end
 
     def add_to_sparse(h, [{s0, s1} | t], packetid) when packetid < s1 do

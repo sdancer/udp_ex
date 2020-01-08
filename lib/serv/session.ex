@@ -87,7 +87,7 @@ defmodule ServerSess do
                 IO.inspect {:received, a}
                 state
 
-        after 1 ->
+        after 2 ->
             state
         end
 
@@ -147,7 +147,7 @@ defmodule ServerSess do
         #IO.inspect {state.last_send, state.send_counter}
         last_reset = Map.get state, :last_reset, {0,0,0}
         now = :erlang.timestamp
-        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(now, last_reset) > 200000) do
+        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(now, last_reset) > 100000) do
             #IO.inspect {__MODULE__, :reset, :ets.first(state.send_queue)}
             %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
         else
@@ -157,7 +157,7 @@ defmodule ServerSess do
 
             case (:ets.lookup state.send_queue, state.last_send) do
                 [{packet_id, {conn_id, data}}] ->
-                    IO.inspect {__MODULE__, :sending, state.last_send, state.send_counter, conn_id, byte_size(data)}
+                    #IO.inspect {__MODULE__, :sending, state.last_send, state.send_counter, conn_id, byte_size(data)}
                     sdata = << packet_id::64-little, data :: binary>>
                     :gen_udp.send(state.udpsocket, :inet.ntoa(host), port, sdata)
                 [] ->
