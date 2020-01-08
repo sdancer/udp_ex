@@ -46,13 +46,15 @@ defmodule CliConn do
             send state.session, {:tcp_closed, self()}
             {:stop, :normal, state}
         else
+
             IO.inspect {__MODULE__, :ignoring_close, offset, sent}
+            state = Map.put state, :close_at, offset
             {:noreply, state}
         end
     end
 
     def handle_info({:queue, offset, _bin}, state = %{sent: sent}) when offset < sent do
-        IO.inspect {:discarted_queue_packet, offset, sent}
+        #IO.inspect {:discarted_queue_packet, offset, sent}
         {:noreply, state}
     end
 
@@ -67,7 +69,14 @@ defmodule CliConn do
             state
         end
 
-        {:noreply, state}
+        if (state.sent == state[:close_at]) do
+            IO.inspect {__MODULE__, :close_reached, state.sent}
+            :gen_tcp.close state.socket
+            send state.session, {:tcp_closed, self()}
+            {:stop, :normal, state}
+        else
+            {:noreply, state}
+        end
     end
 
     def handle_info {:tcp, socket, bin}, state do

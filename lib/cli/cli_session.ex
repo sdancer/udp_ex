@@ -123,7 +123,7 @@ defmodule ClientSess do
         last_req_again = state.last_req_again
         now = :erlang.timestamp
         state = if (:timer.now_diff(now, last_req_again) > 250000) do
-            #IO.inspect state.buckets
+            IO.inspect {:req_again, now}
             case state.buckets do
                 [{_x, 0}] ->
                     :nothing
