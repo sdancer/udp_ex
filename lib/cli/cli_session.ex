@@ -116,12 +116,17 @@ defmodule ClientSess do
 
         << packet_id::64-little, data :: binary>> = bin
 
-        {res, nbuckets} = add_to_sparse([], state.buckets, packet_id)
-        case res do
+        {is_new, nbuckets} = add_to_sparse([], state.buckets, packet_id)
+
+        ack_data state, packet_id
+
+        case is_new do
             :ok ->
-                ack_data state, packet_id
+                newpackets = Process.get :news, 0
+                Process.put :news, newpackets + 1
             _ ->
-                nil
+                dups = Process.get :dups, 0
+                Process.put :dups, dups + 1
         end
 
         state = Map.put state, :buckets, nbuckets
@@ -131,9 +136,12 @@ defmodule ClientSess do
         last_req_again = state.last_req_again
         now = :erlang.timestamp
         #if congestion too high, make the retry req 1 s
-        state = if (:timer.now_diff(now, last_req_again) > 500000) do
-            IO.inspect state.buckets
-            IO.inspect {:req_again, now}
+        state = if (:timer.now_diff(now, last_req_again) > 3000000) do
+            #IO.inspect state.buckets
+            IO.inspect {:req_again, now,
+                    Process.get(:dups, 0),
+                    Process.get(:news, 0)
+                    }
             case state.buckets do
                 [{_x, 0}] ->
                     :nothing
@@ -229,41 +237,41 @@ defmodule ClientSess do
     end
 
     def test() do
-        [{0,0}] = ClientSess.add_to_sparse [], [], 0
+        {:ok, [{0,0}]} = ClientSess.add_to_sparse [], [], 0
 
-        s = ClientSess.add_to_sparse [], [], 1
+        {:ok, s} = ClientSess.add_to_sparse [], [], 1
         IO.inspect s
-        s = ClientSess.add_to_sparse [], s, 3
+        {:ok, s} = ClientSess.add_to_sparse [], s, 3
         IO.inspect s
-        s = ClientSess.add_to_sparse [], s, 4
+        {:ok, s} = ClientSess.add_to_sparse [], s, 4
         IO.inspect s
-        s = ClientSess.add_to_sparse [], s, 7
+        {:ok, s} = ClientSess.add_to_sparse [], s, 7
         IO.inspect s
-        s = ClientSess.add_to_sparse [], s, 10
-        IO.inspect s
-
-        s = ClientSess.add_to_sparse [], s, 5
+        {:ok, s} = ClientSess.add_to_sparse [], s, 10
         IO.inspect s
 
-        s = ClientSess.add_to_sparse [], s, 6
+        {:ok, s} = ClientSess.add_to_sparse [], s, 5
         IO.inspect s
 
-        s = ClientSess.add_to_sparse [], s, 6
+        {:ok, s} = ClientSess.add_to_sparse [], s, 6
         IO.inspect s
 
-        s = ClientSess.add_to_sparse [], s, 1
+        {:already_exists, s} = ClientSess.add_to_sparse [], s, 6
         IO.inspect s
 
-        s = ClientSess.add_to_sparse [], s, 2
+        {:already_exists, s} = ClientSess.add_to_sparse [], s, 1
         IO.inspect s
 
-        s = ClientSess.add_to_sparse [], s, 8
+        {:ok, s} = ClientSess.add_to_sparse [], s, 2
         IO.inspect s
 
-        s = ClientSess.add_to_sparse [], s, 9
+        {:ok, s} = ClientSess.add_to_sparse [], s, 8
         IO.inspect s
 
-        s = ClientSess.add_to_sparse [], s, 0
+        {:ok, s} = ClientSess.add_to_sparse [], s, 9
+        IO.inspect s
+
+        {:ok, s} = ClientSess.add_to_sparse [], s, 0
         IO.inspect s
     end
 end
