@@ -28,6 +28,7 @@ defmodule ClientSess do
             tcpuplink: tcpuplink,
             buckets: [],
             last_req_again: {0,0,0},
+            last_send_buckets: {0,0,0}
         }
         send self(), :tick
         {:ok, state}
@@ -136,10 +137,9 @@ defmodule ClientSess do
 
 
 
-        last_req_again = state.last_req_again
         now = :erlang.timestamp
         #if congestion too high, make the retry req 1 s
-        state = if (:timer.now_diff(now, last_req_again) > 3000000) do
+        state = if (:timer.now_diff(now, state.last_req_again) > 1000000) do
             #IO.inspect state.buckets
             IO.inspect {:req_again, now,
                     Process.get(:dups, 0),
@@ -158,9 +158,22 @@ defmodule ClientSess do
             state
         end
 
+        state = send_buckets state
+
         state = proc_udp_packet(data, state)
 
         {:noreply, state}
+    end
+
+    def send_buckets(state) do
+        state = if (:timer.now_diff(now, state.last_send_buckets) > 250000) do
+
+            #:gen_udp.send state.udpsocket, :binary.bin_to_list(state.remotehost), state.remoteport, <<curtime::64-little>>
+
+            state = Map.put state, :last_send_buckets, :erlang.timestamp
+        else
+            state
+        end
     end
 
     def proc_udp_packet(<<1, conn_id::64-little, offset::64-little, data :: binary>>, state) do
