@@ -6,7 +6,7 @@ defmodule ClientSess do
     end
 
     def init(args) do
-        remotehost = "52.79.227.216"
+        remotehost = "173.208.248.106"
         remoteport = 9090
 
         {a,b,c} = :erlang.now
@@ -116,15 +116,18 @@ defmodule ClientSess do
 
         << packet_id::64-little, data :: binary>> = bin
 
+        pbuckets = state.buckets
         {is_new, nbuckets} = add_to_sparse([], state.buckets, packet_id)
-
-        ack_data state, packet_id
 
         case is_new do
             :ok ->
+                ack_data state, packet_id
                 newpackets = Process.get :news, 0
                 Process.put :news, newpackets + 1
             _ ->
+                if (pbuckets != nbuckets) do
+                    IO.inspect {:error, pbuckets, nbuckets}
+                end
                 dups = Process.get :dups, 0
                 Process.put :dups, dups + 1
         end

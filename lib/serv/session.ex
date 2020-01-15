@@ -81,7 +81,25 @@ defmodule ServerSess do
             {:udp_data, host, port, data} ->
                 #TODO: verify the sessionid?
                 #TODO: decrypt
-                %{state | remote_udp_endpoint: {host, port}}
+                case data do
+                    <<
+                    sessionid::64-little,
+                    ackmin::64-little,
+                    buckets::32-little,
+                    rest::binary>> ->
+                        buckets = if buckets == 0, do: [], else: (
+                                {b,""} = Enum.reduce 1..buckets, {[], rest}, fn(x, {acc, rest})->
+                                    <<bend::64-little, bstart::64-little, rest::binary>> = rest
+                                    {[{bend, bstart} | acc], rest}
+                                end
+                                b
+                            )
+                        IO.inspect {:got_buckets, buckets}
+                        %{state | remote_udp_endpoint: {host, port}}
+                    _ ->
+                        %{state | remote_udp_endpoint: {host, port}}
+                end
+
 
             a ->
                 IO.inspect {:received, a}
@@ -159,6 +177,19 @@ defmodule ServerSess do
                 [{packet_id, {conn_id, data}}] ->
                     #IO.inspect {__MODULE__, :sending, state.last_send, state.send_counter, conn_id, byte_size(data)}
                     sdata = << packet_id::64-little, data :: binary>>
+
+                    key = Process.get(:key)
+                    key = if key == nil do
+                        k = Enum.reduce 1..128, "", fn(x, acc)->
+                            acc <> <<x, "BCDEFGH">>
+                        end
+                        Process.put(:key, k)
+                        k
+                    else
+                        key
+                    end
+                    sdata = :crypto.exor sdata, :binary.part(k, 0, byte_size(sdata))
+
                     :gen_udp.send(state.udpsocket, :inet.ntoa(host), port, sdata)
                 [] ->
                     nil
