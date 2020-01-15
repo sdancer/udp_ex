@@ -129,21 +129,12 @@ defmodule ServerSess do
         send_counter
     end
 
-
-    def insert_close send_queue, {send_counter, conn_id, offset} do
-        data = <<3, conn_id::64-little, offset::64-little,>>
-
-       :ets.insert send_queue, {send_counter, {conn_id, data}}
-
-        send_counter + 1
-    end
-
-    def insert_chunks send_queue, {send_counter, {conn_id, offset, <<d::binary-size(1000), rest::binary>>}} do
+    def insert_chunks send_queue, {send_counter, {conn_id, offset, <<d::binary-size(800), rest::binary>>}} do
         data = <<1, conn_id::64-little,
                    offset::64-little, d::binary>>
 
         :ets.insert send_queue, {send_counter, {conn_id, data}}
-        insert_chunks(send_queue, {send_counter + 1, {conn_id, offset+1000, rest}})
+        insert_chunks(send_queue, {send_counter + 1, {conn_id, offset+800, rest}})
     end
 
     def insert_chunks send_queue, {send_counter, {conn_id, offset, d}} do
@@ -154,6 +145,15 @@ defmodule ServerSess do
 
         send_counter + 1
     end
+
+    def insert_close send_queue, {send_counter, conn_id, offset} do
+        data = <<3, conn_id::64-little, offset::64-little,>>
+
+       :ets.insert send_queue, {send_counter, {conn_id, data}}
+
+        send_counter + 1
+    end
+
 
     def dispatch_packets(nil, state) do
         state

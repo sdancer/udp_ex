@@ -15,9 +15,21 @@ defmodule UdpClient do
 
     def loop(socket, client_session) do
        receive do
-          {:udp, socket, host, port, bin} ->
+          {:udp, socket, host, port, data} ->
               #IO.inspect {__MODULE__, "received", host, port, bin}
-              send client_session, {:udp_data, host, port, bin}
+              key = Process.get(:key)
+              key = if key == nil do
+                  k = Enum.reduce 1..128, "", fn(x, acc)->
+                      acc <> <<x, "BCDEFGH">>
+                  end
+                  Process.put(:key, k)
+                  k
+              else
+                  key
+              end
+              data = :crypto.exor data, :binary.part(key, 0, byte_size(data))
+
+              send client_session, {:udp_data, host, port, data}
        end
        __MODULE__.loop(socket, client_session)
     end
