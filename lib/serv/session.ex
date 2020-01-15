@@ -141,6 +141,10 @@ defmodule ServerSess do
         data = <<1, conn_id::64-little,
                    offset::64-little, d::binary>>
 
+        if byte_size(data) > 1000 do
+            throw {:oversize, byte_size(data), d}
+        end
+
        :ets.insert send_queue, {send_counter, {conn_id, data}}
 
         send_counter + 1
