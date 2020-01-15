@@ -188,7 +188,7 @@ defmodule ServerSess do
                     else
                         key
                     end
-                    sdata = :crypto.exor sdata, :binary.part(k, 0, byte_size(sdata))
+                    sdata = :crypto.exor sdata, :binary.part(key, 0, byte_size(sdata))
 
                     :gen_udp.send(state.udpsocket, :inet.ntoa(host), port, sdata)
                 [] ->
