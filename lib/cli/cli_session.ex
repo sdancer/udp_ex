@@ -166,7 +166,7 @@ defmodule ClientSess do
     end
 
     def send_buckets(state) do
-        state = if (:timer.now_diff(now, state.last_send_buckets) > 250000) do
+        state = if (:timer.now_diff(:erlang.timestamp, state.last_send_buckets) > 250000) do
 
             #:gen_udp.send state.udpsocket, :binary.bin_to_list(state.remotehost), state.remoteport, <<curtime::64-little>>
 
