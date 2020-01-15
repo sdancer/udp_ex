@@ -94,7 +94,10 @@ defmodule ServerSess do
                                 end
                                 b
                             )
-                        IO.inspect {:got_buckets, buckets}
+                        Enum.each buckets, fn({send, start})->
+                            delete_entries(state.send_queue, send+1, start)
+                        end
+                        #IO.inspect {:got_buckets, buckets}
                         %{state | remote_udp_endpoint: {host, port}}
                     _ ->
                         %{state | remote_udp_endpoint: {host, port}}
@@ -110,6 +113,21 @@ defmodule ServerSess do
         end
 
         __MODULE__.loop(state)
+    end
+
+    def delete_entries(_send_queue, :"$end_of_table", _start) do
+    end
+
+    def delete_entries(_send_queue, send, start) when send < start do
+    end
+
+    def delete_entries(send_queue, send, start) do
+        tsend = :ets.prev send_queue, send
+        if (tsend != :"$end_of_table") and (tsend >= start) do
+            IO.inspect {:deleting, tsend, send, start}
+            :ets.delete send_queue, tsend
+        end
+        delete_entries(send_queue, tsend, start)
     end
 
     def remove_conn conn_id, state do
@@ -169,7 +187,7 @@ defmodule ServerSess do
         #IO.inspect {state.last_send, state.send_counter}
         last_reset = Map.get state, :last_reset, {0,0,0}
         now = :erlang.timestamp
-        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(now, last_reset) > 300000) do
+        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(now, last_reset) > 150000) do
             #IO.inspect {__MODULE__, :reset, :ets.first(state.send_queue)}
             %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
         else

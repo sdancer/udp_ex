@@ -122,7 +122,7 @@ defmodule ClientSess do
 
         case is_new do
             :ok ->
-                ack_data state, packet_id
+                #ack_data state, packet_id
                 newpackets = Process.get :news, 0
                 Process.put :news, newpackets + 1
             _ ->
@@ -139,7 +139,7 @@ defmodule ClientSess do
 
         now = :erlang.timestamp
         #if congestion too high, make the retry req 1 s
-        state = if (:timer.now_diff(now, state.last_req_again) > 1000000) do
+        state = if (:timer.now_diff(now, state.last_req_again) > 500000) do
             #IO.inspect state.buckets
             IO.inspect {:req_again, now,
                     Process.get(:dups, 0),
@@ -166,9 +166,27 @@ defmodule ClientSess do
     end
 
     def send_buckets(state) do
-        state = if (:timer.now_diff(:erlang.timestamp, state.last_send_buckets) > 250000) do
+        state = if (:timer.now_diff(:erlang.timestamp, state.last_send_buckets) > 50000) do
 
             #:gen_udp.send state.udpsocket, :binary.bin_to_list(state.remotehost), state.remoteport, <<curtime::64-little>>
+            b = Enum.slice state.buckets, 0, 50
+            if b != [] do
+                IO.inspect {"sending buckets", b}
+
+                buckets_data = Enum.reduce b, "", fn({send, start}, acc)->
+                    acc <> <<send::64-little, start::64-little>>
+                end
+
+                count = Enum.count(b)
+
+                data = <<
+                state.sessionid::64-little,
+                0::64-little,
+                count::32-little,
+                buckets_data::binary>>
+
+                :gen_udp.send state.udpsocket, :binary.bin_to_list(state.remotehost), state.remoteport, data
+            end
 
             state = Map.put state, :last_send_buckets, :erlang.timestamp
         else
