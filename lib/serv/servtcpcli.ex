@@ -18,7 +18,7 @@ defmodule ServTcpCli do
     def handle_info(:connect, state) do
         IO.inspect {__MODULE__, :connecting, state.remotehost, state.remoteport}
 
-        result = :gen_tcp.connect :binary.bin_to_list(state.remotehost), state.remoteport, [{:active, true}, :binary]
+        result = :gen_tcp.connect :binary.bin_to_list(state.remotehost), state.remoteport, [{:active, true}, {:reuseaddr, true}, :binary]
         case result do
             {:error, _} ->
                 send state.session, {:tcp_closed, state.conn_id}
