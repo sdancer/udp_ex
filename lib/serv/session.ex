@@ -4,7 +4,7 @@ defmodule ServerSess do
         #has a uid
         #holds upstream tcp connections
         #holds a table for packets to send
-        Mitme.Acceptor.start_link %{port: 9099, module: ServTcp, session: self()}
+        Mitme.Acceptor.start_link %{port: 9090, module: ServTcp, session: self()}
         {:ok, udpsocket} = ServerUdp.start 9090, self()
 
 
