@@ -18,7 +18,7 @@ defmodule ServTcpCli do
     def handle_info(:connect, state) do
         IO.inspect {__MODULE__, :connecting, state.remotehost, state.remoteport}
 
-        result = :gen_tcp.connect :binary.bin_to_list(state.remotehost), state.remoteport, [{:active, true}, {:reuseaddr, true}, :binary]
+        result = :gen_tcp.connect :binary.bin_to_list(state.remotehost), state.remoteport, [{:active, true}, :binary]
         case result do
             {:error, _} ->
                 send state.session, {:tcp_closed, state.conn_id}
@@ -32,7 +32,8 @@ defmodule ServTcpCli do
     end
 
     def handle_info({:tcp_closed, socket}, state) do
-        send state.session, {:tcp_closed, state.conn_id, state.offset}
+        offset = Map.get state, :offset, 0
+        send state.session, {:tcp_closed, state.conn_id, offset}
 
         {:stop, :normal, state}
     end
