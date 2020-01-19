@@ -124,7 +124,7 @@ defmodule ServerSess do
     def delete_entries(send_queue, send, start) do
         tsend = :ets.prev send_queue, send
         if (tsend != :"$end_of_table") and (tsend >= start) do
-            IO.inspect {:deleting, tsend, send, start}
+            #IO.inspect {:deleting, tsend, send, start}
             :ets.delete send_queue, tsend
         end
         delete_entries(send_queue, tsend, start)
@@ -187,7 +187,7 @@ defmodule ServerSess do
         #IO.inspect {state.last_send, state.send_counter}
         last_reset = Map.get state, :last_reset, {0,0,0}
         now = :erlang.timestamp
-        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(now, last_reset) > 150000) do
+        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(now, last_reset) > 300000) do
             #IO.inspect {__MODULE__, :reset, :ets.first(state.send_queue)}
             %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
         else

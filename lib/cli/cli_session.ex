@@ -6,8 +6,8 @@ defmodule ClientSess do
     end
 
     def init(args) do
-        remotehost = "52.79.227.216"
-        remoteport = 9090
+        remotehost = "173.208.248.106"
+        remoteport = 9099
 
         {a,b,c} = :erlang.now
         sessionid = a*1000 + b
@@ -15,7 +15,7 @@ defmodule ClientSess do
         {:ok, udpsocket} = UdpClient.start 9908, self()
         {:ok, tcpuplink} = TcpUplink.start {remotehost, remoteport}, sessionid, self()
 
-        remoteport = 9090 #udp port
+        remoteport = 9099 #udp port
 
         Mitme.Acceptor.start_link %{port: 9080, module: CliConn, session: self()}
 
