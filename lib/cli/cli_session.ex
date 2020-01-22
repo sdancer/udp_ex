@@ -45,7 +45,19 @@ defmodule ClientSess do
         curtime = a*1000000 + b
         :gen_udp.send state.udpsocket, :binary.bin_to_list(state.remotehost), state.remoteport, <<curtime::64-little>>
 
+        print_stats state
+
         {:noreply, state}
+    end
+
+    def print_stats(state) do
+        newpackets = Process.get :news, 0
+        dups = Process.get :dups, 0
+        {oldnew, olddups} = Process.get :old_stats, {0, 0}
+
+        IO.inspect {:stats5, (newpackets - oldnew) / 5, (dups - olddups) / 5}
+
+        Process.put :old_stats, {newpackets, dups}
     end
 
     def handle_info({:tcp_data, proc, data}, state) do
@@ -54,6 +66,7 @@ defmodule ClientSess do
         #send to tcp uplink
         case fproc do
             {_, %{conn_id: next_conn_id}} ->
+                IO.inspect {:sending_tcp_data, next_conn_id, byte_size(data)}
                 send state.tcpuplink, {:send, <<
                     2, #data
                     next_conn_id :: 64-little,
@@ -71,6 +84,7 @@ defmodule ClientSess do
         next_conn_id = state.next_conn_id
 
         #add a monitor to the tcp proc
+        IO.inspect {:tcp_add, next_conn_id, dest_host, dest_port}
 
         tcp_procs = Map.put state.tcp_procs, next_conn_id, %{
             proc: proc, conn_id: next_conn_id
@@ -92,7 +106,7 @@ defmodule ClientSess do
         s = Enum.find state.tcp_procs, fn({_, aconn})-> aconn.proc == proc end
         case s do
             {_, %{conn_id: next_conn_id}} ->
-
+                IO.inspect {:tcp_closed, next_conn_id}
                 send state.tcpuplink, {:send, <<
                     3, #close
                     next_conn_id :: 64-little,
@@ -142,12 +156,12 @@ defmodule ClientSess do
 
         now = :erlang.timestamp
         #if congestion too high, make the retry req 1 s
-        state = if (:timer.now_diff(now, state.last_req_again) > 500000) do
+        state = if (:timer.now_diff(now, state.last_req_again) > 1000000) do
             #IO.inspect state.buckets
-            IO.inspect {:req_again, now,
-                    Process.get(:dups, 0),
-                    Process.get(:news, 0)
-                    }
+            # IO.inspect {:req_again, now,
+            #         Process.get(:dups, 0),
+            #         Process.get(:news, 0)
+            #         }
             case state.buckets do
                 [{_x, 0}] ->
                     :nothing
@@ -172,9 +186,9 @@ defmodule ClientSess do
         state = if (:timer.now_diff(:erlang.timestamp, state.last_send_buckets) > 50000) do
 
             #:gen_udp.send state.udpsocket, :binary.bin_to_list(state.remotehost), state.remoteport, <<curtime::64-little>>
-            b = Enum.slice state.buckets, 0, 50
+            b = Enum.slice Enum.shuffle(state.buckets), 0, 50
             if b != [] do
-                IO.inspect {"sending buckets", b}
+                #IO.inspect {"sending buckets", b}
 
                 buckets_data = Enum.reduce b, "", fn({send, start}, acc)->
                     acc <> <<send::64-little, start::64-little>>
@@ -216,9 +230,10 @@ defmodule ClientSess do
         proc = Map.get state.tcp_procs, conn_id, nil
         case proc do
             %{proc: pid} ->
+                IO.inspect {__MODULE__, :connection_closed, conn_id, sent}
                 send pid, {:close_conn, sent}
             _ ->
-                #IO.inspect {__MODULE__, :PROC_NOT_FOUND, state.tcp_procs}
+                IO.inspect {__MODULE__, :PROC_NOT_FOUND, state.tcp_procs}
                 nil
         end
 

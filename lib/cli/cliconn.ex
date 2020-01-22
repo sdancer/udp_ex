@@ -42,6 +42,7 @@ defmodule CliConn do
 
     def handle_info({:close_conn, offset}, state = %{sent: sent}) do
         if (state.sent == offset) do
+            IO.inspect {__MODULE__, :close_conn, sent}
             :gen_tcp.close state.socket
             send state.session, {:tcp_closed, self()}
             {:stop, :normal, state}

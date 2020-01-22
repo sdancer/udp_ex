@@ -26,6 +26,13 @@ defmodule ServerSess do
 
     def loop(state) do
         state = dispatch_packets(state.remote_udp_endpoint, state)
+        {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+        state = if pressure < 2000 do
+            state
+        else
+            state = dispatch_packets(state.remote_udp_endpoint, state)
+            state = dispatch_packets(state.remote_udp_endpoint, state)
+        end
 
         state = receive do
             {:add_con, conn_id, dest_host, dest_port} ->
@@ -52,7 +59,17 @@ defmodule ServerSess do
                 state
 
             {:req_again, conn_id, data_frame} ->
-                IO.inspect {__MODULE__, :req_again, conn_id, data_frame}
+                case :ets.lookup(state.send_queue, data_frame) do
+                    [] ->
+                        IO.puts "req_again_not_exists!!!!!!"
+                    _ ->
+                end
+
+                {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+
+                IO.inspect {__MODULE__, :req_again, conn_id, data_frame,
+                            pressure
+                        }
                 %{state | last_send: data_frame}
 
             {:rm_con, conn_id} ->
@@ -108,7 +125,7 @@ defmodule ServerSess do
                 IO.inspect {:received, a}
                 state
 
-        after 2 ->
+        after 1 ->
             state
         end
 
@@ -187,7 +204,7 @@ defmodule ServerSess do
         #IO.inspect {state.last_send, state.send_counter}
         last_reset = Map.get state, :last_reset, {0,0,0}
         now = :erlang.timestamp
-        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(now, last_reset) > 300000) do
+        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(now, last_reset) > 250000) do
             #IO.inspect {__MODULE__, :reset, :ets.first(state.send_queue)}
             %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
         else

@@ -16,7 +16,6 @@ defmodule UdpClient do
     def loop(socket, client_session) do
        receive do
           {:udp, socket, host, port, data} ->
-              #IO.inspect {__MODULE__, "received", host, port, bin}
               key = Process.get(:key)
               key = if key == nil do
                   k = Enum.reduce 1..128, "", fn(x, acc)->

@@ -28,7 +28,7 @@ defmodule ServTcp do
 
 
     def handle_info {:tcp_closed, socket}, state do
-
+        IO.inspect "session connection closed, crash and burn"
         {:noreply, state}
     end
 
@@ -76,6 +76,7 @@ defmodule ServTcp do
                 dest_port::16-little,
                 rest :: binary
             >> ->
+                IO.inspect {:connect, next_conn_id, dest_host, dest_port}
                 send state.session, {:add_con, next_conn_id, dest_host, dest_port}
                 proc_data(rest, state)
             <<
@@ -84,6 +85,7 @@ defmodule ServTcp do
                 count::32-little,
                 rest:: binary
             >> ->
+                IO.inspect {:tcp_data, next_conn_id, count}
                 proc_data(rest, %{state | queue: {count, next_conn_id}})
 
             <<
@@ -95,7 +97,7 @@ defmodule ServTcp do
                 proc_data(rest, state)
 
             <<
-                4, #ack data
+                4,
                 conn_id :: 64-little,
                 data_frame :: 64-little,
                 rest::binary
@@ -104,7 +106,7 @@ defmodule ServTcp do
                 proc_data(rest, state)
 
             <<
-                5, #ack data
+                5,
                 conn_id :: 64-little,
                 data_frame :: 64-little,
                 rest::binary
