@@ -24,15 +24,36 @@ defmodule ServerSess do
         loop state
     end
 
+    def print_report(state) do
+      now = :erlang.timestamp
+      if :timer.now_diff(now, Process.get(:last_report, {0,0,0})) > 1_000_000 do
+        Process.put :last_report, now
+
+        {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+
+        udp_data = Process.put {:series, :udp_data}, 0
+
+        IO.puts "serv stats: #{inspect {
+          :presure, pressure,
+          :last_send, state.last_send,
+          :send_counter, state.send_counter,
+          :received_udp_data, udp_data}}"
+      end
+    end
+
     def loop(state) do
         state = dispatch_packets(state.remote_udp_endpoint, state)
         {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+
+
         state = if pressure < 2000 do
             state
         else
             state = dispatch_packets(state.remote_udp_endpoint, state)
             state = dispatch_packets(state.remote_udp_endpoint, state)
         end
+
+        print_report(state)
 
         state = receive do
             {:add_con, conn_id, dest_host, dest_port} ->
@@ -96,6 +117,9 @@ defmodule ServerSess do
                 %{state | send_counter: send_counter}
 
             {:udp_data, host, port, data} ->
+                Process.put {:series, :udp_data}, (Process.get {:series, :udp_data}, 0) + 1
+                IO.inspect {:udp_data, Process.get {:series, :udp_data}}
+
                 #TODO: verify the sessionid?
                 #TODO: decrypt
                 case data do
