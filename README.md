@@ -19,3 +19,6 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/udp_ex](https://hexdocs.pm/udp_ex).
 
+to do
+- server side delete packets if conn closed on client side, and queue notification
+- bridges
