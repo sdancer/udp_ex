@@ -55,105 +55,114 @@ defmodule ServerSess do
 
         print_report(state)
 
-        state = receive do
-            {:add_con, conn_id, dest_host, dest_port} ->
-                #launch a connection
-                {:ok, pid} = ServTcpCli.start {dest_host, dest_port}, conn_id, self()
-                procs = Map.put state.procs, conn_id, %{proc: pid}
-                %{state | procs: procs}
-
-            {:con_data, conn_id, send_bytes} ->
-                #IO.inspect {__MODULE__, :con_data, conn_id, byte_size(send_bytes)}
-                #send bytes to the tcp conn
-                proc = Map.get state.procs, conn_id, nil
-                case proc do
-                    %{proc: proc} ->
-                        send proc, {:send, send_bytes}
-                    _ ->
-                        nil
-                end
-
-                state
-
-            {:ack_data, conn_id, data_frame} ->
-                :ets.delete state.send_queue, data_frame
-                state
-
-            {:req_again, conn_id, data_frame} ->
-                case :ets.lookup(state.send_queue, data_frame) do
-                    [] ->
-                        IO.puts "req_again_not_exists!!!!!!"
-                    _ ->
-                end
-
-                {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
-
-                IO.inspect {__MODULE__, :req_again, conn_id, data_frame,
-                            pressure
-                        }
-                %{state | last_send: data_frame}
-
-            {:rm_con, conn_id} ->
-                #kill a connection
-                remove_conn conn_id, state
-
-            {:tcp_data, conn_id, offset, d} ->
-                #IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
-                #add to the udp list
-                send_counter = insert_chunks state.send_queue, {state.send_counter, {conn_id, offset, d}}
-                state = update_lastsend state, send_counter
-                %{state | send_counter: send_counter}
-
-            {:tcp_connected, conn_id} ->
-                #notify the other side
-                state
-
-            {:tcp_closed, conn_id, offset} ->
-                #notify the other side
-                IO.inspect {__MODULE__, :conn_closed, conn_id}
-                state = remove_conn conn_id, state
-                send_counter = insert_close state.send_queue, {state.send_counter, conn_id, offset}
-                state = update_lastsend state, send_counter
-                %{state | send_counter: send_counter}
-
-            {:udp_data, host, port, data} ->
-                Process.put {:series, :udp_data}, (Process.get {:series, :udp_data}, 0) + 1
-                IO.inspect {:udp_data, Process.get {:series, :udp_data}}
-
-                #TODO: verify the sessionid?
-                #TODO: decrypt
-                case data do
-                    <<
-                    sessionid::64-little,
-                    ackmin::64-little,
-                    buckets::32-little,
-                    rest::binary>> ->
-                        buckets = if buckets == 0, do: [], else: (
-                                {b,""} = Enum.reduce 1..buckets, {[], rest}, fn(x, {acc, rest})->
-                                    <<bend::64-little, bstart::64-little, rest::binary>> = rest
-                                    {[{bend, bstart} | acc], rest}
-                                end
-                                b
-                            )
-                        Enum.each buckets, fn({send, start})->
-                            delete_entries(state.send_queue, send+1, start)
-                        end
-                        #IO.inspect {:got_buckets, buckets}
-                        %{state | remote_udp_endpoint: {host, port}}
-                    _ ->
-                        %{state | remote_udp_endpoint: {host, port}}
-                end
-
-
-            a ->
-                IO.inspect {:received, a}
-                state
-
-        after 1 ->
-            state
-        end
+        state = receive_loop(state)
 
         __MODULE__.loop(state)
+    end
+
+    def receive_loop(state) do
+      result = receive do
+          {:add_con, conn_id, dest_host, dest_port} ->
+              #launch a connection
+              {:ok, pid} = ServTcpCli.start {dest_host, dest_port}, conn_id, self()
+              procs = Map.put state.procs, conn_id, %{proc: pid}
+              %{state | procs: procs}
+
+          {:con_data, conn_id, send_bytes} ->
+              #IO.inspect {__MODULE__, :con_data, conn_id, byte_size(send_bytes)}
+              #send bytes to the tcp conn
+              proc = Map.get state.procs, conn_id, nil
+              case proc do
+                  %{proc: proc} ->
+                      send proc, {:send, send_bytes}
+                  _ ->
+                      nil
+              end
+
+              state
+
+          {:ack_data, conn_id, data_frame} ->
+              :ets.delete state.send_queue, data_frame
+              state
+
+          {:req_again, conn_id, data_frame} ->
+              case :ets.lookup(state.send_queue, data_frame) do
+                  [] ->
+                      IO.puts "req_again_not_exists!!!!!!"
+                  _ ->
+              end
+
+              {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+
+              IO.inspect {__MODULE__, :req_again, conn_id, data_frame,
+                          pressure
+                      }
+              %{state | last_send: data_frame}
+
+          {:rm_con, conn_id} ->
+              #kill a connection
+              remove_conn conn_id, state
+
+          {:tcp_data, conn_id, offset, d} ->
+              #IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
+              #add to the udp list
+              send_counter = insert_chunks state.send_queue, {state.send_counter, {conn_id, offset, d}}
+              state = update_lastsend state, send_counter
+              %{state | send_counter: send_counter}
+
+          {:tcp_connected, conn_id} ->
+              #notify the other side
+              state
+
+          {:tcp_closed, conn_id, offset} ->
+              #notify the other side
+              IO.inspect {__MODULE__, :conn_closed, conn_id}
+              state = remove_conn conn_id, state
+              send_counter = insert_close state.send_queue, {state.send_counter, conn_id, offset}
+              state = update_lastsend state, send_counter
+              %{state | send_counter: send_counter}
+
+          {:udp_data, host, port, data} ->
+              Process.put {:series, :udp_data}, (Process.get {:series, :udp_data}, 0) + 1
+              #IO.inspect {:udp_data, Process.get {:series, :udp_data}}
+
+              #TODO: verify the sessionid?
+              #TODO: decrypt
+              case data do
+                  <<
+                  sessionid::64-little,
+                  ackmin::64-little,
+                  buckets::32-little,
+                  rest::binary>> ->
+                      buckets = if buckets == 0, do: [], else: (
+                              {b,""} = Enum.reduce 1..buckets, {[], rest}, fn(x, {acc, rest})->
+                                  <<bend::64-little, bstart::64-little, rest::binary>> = rest
+                                  {[{bend, bstart} | acc], rest}
+                              end
+                              b
+                          )
+                      Enum.each buckets, fn({send, start})->
+                          delete_entries(state.send_queue, send+1, start)
+                      end
+                      #IO.inspect {:got_buckets, buckets}
+                      %{state | remote_udp_endpoint: {host, port}}
+                  _ ->
+                      %{state | remote_udp_endpoint: {host, port}}
+              end
+
+
+          a ->
+              IO.inspect {:received, a}
+              state
+
+      after 1 ->
+          :timeout
+      end
+
+      case result do
+        :timeout -> state
+        _ -> receive_loop(result)
+      end
     end
 
     def delete_entries(_send_queue, :"$end_of_table", _start) do
