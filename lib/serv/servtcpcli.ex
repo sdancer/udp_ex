@@ -59,7 +59,7 @@ defmodule ServTcpCli do
     end
 
     def handle_info(:continue_reading, state) do
-        :inet.setopts state.socket, {:active, :once}
+        :inet.setopts state.socket, [{:active, :once}]
         
         {:noreply, state}
     end
