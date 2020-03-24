@@ -18,6 +18,7 @@ defmodule ServerSess do
             last_reset: {0,0,0},
             procs: %{},
             udpsocket: udpsocket,
+            reading_queue: []
         }
 
         #{:ok, state}
@@ -45,6 +46,15 @@ defmodule ServerSess do
         state = dispatch_packets(state.remote_udp_endpoint, state)
         {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
 
+        state = if pressure <= 1000 do
+            case state.reading_queue do
+              [] ->
+                state
+              [a|b] ->
+                send a, :continue_reading
+                %{state | reading_queue: b}
+            end
+        else state end
 
         state = if pressure < 2000 do
             state
@@ -103,12 +113,22 @@ defmodule ServerSess do
               #kill a connection
               remove_conn conn_id, state
 
-          {:tcp_data, conn_id, offset, d} ->
+          {:tcp_data, conn_id, offset, d, proc} ->
+              {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+              
+              reading_queue = if pressure > 1000 do
+                  state.reading_queue ++ [proc]
+              else
+                  send proc, :continue_reading
+                  
+                  state.reading_queue
+              end
+
               #IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
               #add to the udp list
               send_counter = insert_chunks state.send_queue, {state.send_counter, {conn_id, offset, d}}
               state = update_lastsend state, send_counter
-              %{state | send_counter: send_counter}
+              %{state | send_counter: send_counter, reading_queue: reading_queue}
 
           {:tcp_connected, conn_id} ->
               #notify the other side
