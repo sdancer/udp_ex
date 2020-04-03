@@ -56,7 +56,7 @@ defmodule ServerSess do
             end
         else state end
 
-        state = if pressure < 2000 do
+        state = if pressure < 500 do
             state
         else
             state = dispatch_packets(state.remote_udp_endpoint, state)
