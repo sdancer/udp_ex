@@ -1,306 +1,288 @@
 defmodule ServerSess do
-    def init() do
-        #send self(), :tick
-        #has a uid
-        #holds upstream tcp connections
-        #holds a table for packets to send
-        Mitme.Acceptor.start_link %{port: 9099, module: ServTcp, session: self()}
-        {:ok, udpsocket} = ServerUdp.start 9099, self()
+  def init() do
+    # send self(), :tick
+    # has a uid
+    # holds upstream tcp connections
+    # holds a table for packets to send
+    Mitme.Acceptor.start_link(%{port: 9099, module: ServTcp, session: self()})
+    {:ok, udpsocket} = ServerUdp.start(9099, self())
 
+    send_queue = PacketQueue.new()
 
-        send_queue = :ets.new :send_queue, [:ordered_set, :public, :named_table]
+    state = %{
+      remote_udp_endpoint: nil,
+      send_queue: send_queue,
+      send_counter: 0,
+      last_send: 0,
+      last_reset: {0, 0, 0},
+      procs: %{},
+      udpsocket: udpsocket,
+      reading_queue: []
+    }
 
-        state = %{
-            remote_udp_endpoint: nil,
-            send_queue: send_queue,
-            send_counter: 0,
-            last_send: 0,
-            last_reset: {0,0,0},
-            procs: %{},
-            udpsocket: udpsocket,
-            reading_queue: []
-        }
+    # {:ok, state}
+    loop(state)
+  end
 
-        #{:ok, state}
-        loop state
+  def print_report(state) do
+    now = :erlang.timestamp()
+
+    if :timer.now_diff(now, Process.get(:last_report, {0, 0, 0})) > 1_000_000 do
+      Process.put(:last_report, now)
+
+      {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+
+      udp_data = Process.put({:series, :udp_data}, 0)
+
+      IO.puts(
+        "serv stats: #{
+          inspect(
+            {:presure, pressure, :last_send, state.last_send, :send_counter, state.send_counter,
+             :received_udp_data, udp_data}
+          )
+        }"
+      )
     end
+  end
 
-    def print_report(state) do
-      now = :erlang.timestamp
-      if :timer.now_diff(now, Process.get(:last_report, {0,0,0})) > 1_000_000 do
-        Process.put :last_report, now
+  def loop(state) do
+    state = dispatch_packets(state.remote_udp_endpoint, state)
+    {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
 
-        {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
-
-        udp_data = Process.put {:series, :udp_data}, 0
-
-        IO.puts "serv stats: #{inspect {
-          :presure, pressure,
-          :last_send, state.last_send,
-          :send_counter, state.send_counter,
-          :received_udp_data, udp_data}}"
-      end
-    end
-
-    def loop(state) do
-        state = dispatch_packets(state.remote_udp_endpoint, state)
-        {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
-
-        state = if pressure <= 1000 do
-            case state.reading_queue do
-              [] ->
-                state
-              [a|b] ->
-                send a, :continue_reading
-                %{state | reading_queue: b}
-            end
-        else state end
-
-        state = if pressure < 500 do
+    state =
+      if pressure <= 1000 do
+        case state.reading_queue do
+          [] ->
             state
-        else
-            state = dispatch_packets(state.remote_udp_endpoint, state)
-            state = dispatch_packets(state.remote_udp_endpoint, state)
+
+          [a | b] ->
+            send(a, :continue_reading)
+            %{state | reading_queue: b}
         end
+      else
+        state
+      end
 
-        print_report(state)
+    state =
+      if pressure < 500 do
+        state
+      else
+        state = dispatch_packets(state.remote_udp_endpoint, state)
+        state = dispatch_packets(state.remote_udp_endpoint, state)
+      end
 
-        state = receive_loop(state)
+    print_report(state)
 
-        __MODULE__.loop(state)
-    end
+    state = receive_loop(state)
 
-    def receive_loop(state) do
-      result = receive do
-          {:add_con, conn_id, dest_host, dest_port} ->
-              #launch a connection
-              {:ok, pid} = ServTcpCli.start {dest_host, dest_port}, conn_id, self()
-              procs = Map.put state.procs, conn_id, %{proc: pid}
-              %{state | procs: procs}
+    __MODULE__.loop(state)
+  end
 
-          {:con_data, conn_id, send_bytes} ->
-              #IO.inspect {__MODULE__, :con_data, conn_id, byte_size(send_bytes)}
-              #send bytes to the tcp conn
-              proc = Map.get state.procs, conn_id, nil
-              case proc do
-                  %{proc: proc} ->
-                      send proc, {:send, send_bytes}
-                  _ ->
-                      nil
-              end
+  def receive_loop(state) do
+    result =
+      receive do
+        {:add_con, conn_id, dest_host, dest_port} ->
+          # launch a connection
+          {:ok, pid} = ServTcpCli.start({dest_host, dest_port}, conn_id, self())
+          procs = Map.put(state.procs, conn_id, %{proc: pid})
+          %{state | procs: procs}
 
-              state
+        {:con_data, conn_id, send_bytes} ->
+          # IO.inspect {__MODULE__, :con_data, conn_id, byte_size(send_bytes)}
+          # send bytes to the tcp conn
+          proc = Map.get(state.procs, conn_id, nil)
 
-          {:ack_data, conn_id, data_frame} ->
-              :ets.delete state.send_queue, data_frame
-              state
+          case proc do
+            %{proc: proc} ->
+              send(proc, {:send, send_bytes})
 
-          {:req_again, conn_id, data_frame} ->
-              case :ets.lookup(state.send_queue, data_frame) do
-                  [] ->
-                      IO.puts "req_again_not_exists!!!!!!"
-                  _ ->
-              end
+            _ ->
+              nil
+          end
 
-              {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+          state
 
-              IO.inspect {__MODULE__, :req_again, conn_id, data_frame,
-                          pressure
-                      }
-              %{state | last_send: data_frame}
+        {:ack_data, conn_id, data_frame} ->
+          :ets.delete(state.send_queue, data_frame)
+          state
 
-          {:rm_con, conn_id} ->
-              #kill a connection
-              remove_conn conn_id, state
+        {:req_again, conn_id, data_frame} ->
+          case :ets.lookup(state.send_queue, data_frame) do
+            [] ->
+              IO.puts("req_again_not_exists!!!!!!")
 
-          {:tcp_data, conn_id, offset, d, proc} ->
-              {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
-              
-              reading_queue = if pressure > 1000 do
-                  state.reading_queue ++ [proc]
-              else
-                  send proc, :continue_reading
-                  
-                  state.reading_queue
-              end
+            _ ->
+              nil
+          end
 
-              #IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
-              #add to the udp list
-              send_counter = insert_chunks state.send_queue, {state.send_counter, {conn_id, offset, d}}
-              state = update_lastsend state, send_counter
-              %{state | send_counter: send_counter, reading_queue: reading_queue}
+          {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
 
-          {:tcp_connected, conn_id} ->
-              #notify the other side
-              state
+          IO.inspect({__MODULE__, :req_again, conn_id, data_frame, pressure})
+          %{state | last_send: data_frame}
 
-          {:tcp_closed, conn_id, offset} ->
-              #notify the other side
-              IO.inspect {__MODULE__, :conn_closed, conn_id}
-              state = remove_conn conn_id, state
-              send_counter = insert_close state.send_queue, {state.send_counter, conn_id, offset}
-              state = update_lastsend state, send_counter
-              %{state | send_counter: send_counter}
+        {:rm_con, conn_id} ->
+          # kill a connection
+          remove_conn(conn_id, state)
 
-          {:udp_data, host, port, data} ->
-              Process.put {:series, :udp_data}, (Process.get {:series, :udp_data}, 0) + 1
-              #IO.inspect {:udp_data, Process.get {:series, :udp_data}}
+        {:tcp_data, conn_id, offset, d, proc} ->
+          {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
 
-              #TODO: verify the sessionid?
-              #TODO: decrypt
-              case data do
-                  <<
-                  sessionid::64-little,
-                  ackmin::64-little,
-                  buckets::32-little,
-                  rest::binary>> ->
-                      buckets = if buckets == 0, do: [], else: (
-                              {b,""} = Enum.reduce 1..buckets, {[], rest}, fn(x, {acc, rest})->
-                                  <<bend::64-little, bstart::64-little, rest::binary>> = rest
-                                  {[{bend, bstart} | acc], rest}
-                              end
-                              b
-                          )
-                      Enum.each buckets, fn({send, start})->
-                          delete_entries(state.send_queue, send+1, start)
-                      end
-                      #IO.inspect {:got_buckets, buckets}
-                      %{state | remote_udp_endpoint: {host, port}}
-                  _ ->
-                      %{state | remote_udp_endpoint: {host, port}}
-              end
+          reading_queue =
+            if pressure > 1000 do
+              state.reading_queue ++ [proc]
+            else
+              send(proc, :continue_reading)
 
+              state.reading_queue
+            end
 
-          a ->
-              IO.inspect {:received, a}
-              state
+          # IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
+          # add to the udp list
+          send_counter =
+            PacketQueue.insert_chunks(state.send_queue, {state.send_counter, {conn_id, offset, d}})
 
-      after 1 ->
+          state = update_lastsend(state, send_counter)
+          %{state | send_counter: send_counter, reading_queue: reading_queue}
+
+        {:tcp_connected, conn_id} ->
+          # notify the other side
+          state
+
+        {:tcp_closed, conn_id, offset} ->
+          # notify the other side
+          IO.inspect({__MODULE__, :conn_closed, conn_id})
+          state = remove_conn(conn_id, state)
+          send_counter = PacketQueue.insert_close(state.send_queue, {state.send_counter, conn_id, offset})
+          state = update_lastsend(state, send_counter)
+          %{state | send_counter: send_counter}
+
+        {:udp_data, host, port, data} ->
+          Process.put({:series, :udp_data}, Process.get({:series, :udp_data}, 0) + 1)
+          # IO.inspect {:udp_data, Process.get {:series, :udp_data}}
+
+          # TODO: verify the sessionid?
+          # TODO: decrypt
+          case data do
+            <<sessionid::64-little, ackmin::64-little, buckets::32-little, rest::binary>> ->
+              buckets =
+                if buckets == 0,
+                  do: [],
+                  else:
+                    (
+                      {b, ""} =
+                        Enum.reduce(1..buckets, {[], rest}, fn x, {acc, rest} ->
+                          <<bend::64-little, bstart::64-little, rest::binary>> = rest
+                          {[{bend, bstart} | acc], rest}
+                        end)
+
+                      b
+                    )
+
+              Enum.each(buckets, fn {send, start} ->
+                PacketQueue.delete_entries(state.send_queue, send + 1, start)
+              end)
+
+              # IO.inspect {:got_buckets, buckets}
+              %{state | remote_udp_endpoint: {host, port}}
+
+            _ ->
+              %{state | remote_udp_endpoint: {host, port}}
+          end
+
+        a ->
+          IO.inspect({:received, a})
+          state
+      after
+        1 ->
           :timeout
       end
 
-      case result do
-        :timeout -> state
-        _ -> receive_loop(result)
-      end
+    case result do
+      :timeout -> state
+      _ -> receive_loop(result)
+    end
+  end
+
+  def remove_conn(conn_id, state) do
+    proc = Map.get(state.procs, conn_id, nil)
+
+    case proc do
+      %{proc: proc} ->
+        Process.exit(proc, :normal)
+
+      _ ->
+        nil
     end
 
-    def delete_entries(_send_queue, :"$end_of_table", _start) do
-    end
+    procs = Map.delete(state.procs, conn_id)
 
-    def delete_entries(_send_queue, send, start) when send < start do
-    end
+    %{state | procs: procs}
+  end
 
-    def delete_entries(send_queue, send, start) do
-        tsend = :ets.prev send_queue, send
-        if (tsend != :"$end_of_table") and (tsend >= start) do
-            #IO.inspect {:deleting, tsend, send, start}
-            :ets.delete send_queue, tsend
-        end
-        delete_entries(send_queue, tsend, start)
-    end
+  def dispatch_packets(nil, state) do
+    state
+  end
 
-    def remove_conn conn_id, state do
-        proc = Map.get state.procs, conn_id, nil
-        case proc do
-            %{proc: proc} ->
-                Process.exit proc, :normal
-            _ ->
-                nil
-        end
-        procs = Map.delete state.procs, conn_id
+  def dispatch_packets({host, port}, state) do
+    # do we have packets to send?
+    # last ping?
+    # pps ?
+    # IO.inspect {state.last_send, state.send_counter}
+    last_reset = Map.get(state, :last_reset, {0, 0, 0})
+    now = :erlang.timestamp()
 
-        %{state | procs: procs}
-    end
-
-    def insert_chunks send_queue, {send_counter, {conn_id, offset, ""}} do
-        send_counter
-    end
-
-    def insert_chunks send_queue, {send_counter, {conn_id, offset, <<d::binary-size(800), rest::binary>>}} do
-        data = <<1, conn_id::64-little,
-                   offset::64-little, d::binary>>
-
-        :ets.insert send_queue, {send_counter, {conn_id, data}}
-        insert_chunks(send_queue, {send_counter + 1, {conn_id, offset+800, rest}})
-    end
-
-    def insert_chunks send_queue, {send_counter, {conn_id, offset, d}} do
-        data = <<1, conn_id::64-little,
-                   offset::64-little, d::binary>>
-
-        if byte_size(data) > 1000 do
-            throw {:oversize, byte_size(data), d}
-        end
-
-       :ets.insert send_queue, {send_counter, {conn_id, data}}
-
-        send_counter + 1
-    end
-
-    def insert_close send_queue, {send_counter, conn_id, offset} do
-        data = <<3, conn_id::64-little, offset::64-little,>>
-
-       :ets.insert send_queue, {send_counter, {conn_id, data}}
-
-        send_counter + 1
-    end
-
-
-    def dispatch_packets(nil, state) do
+    state =
+      if state.last_send == :"$end_of_table" and :timer.now_diff(now, last_reset) > 250_000 do
+        # IO.inspect {__MODULE__, :reset, :ets.first(state.send_queue)}
+        %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
+      else
         state
-    end
-    def dispatch_packets({host, port}, state) do
-        #do we have packets to send?
-        #last ping?
-        #pps ?
-        #IO.inspect {state.last_send, state.send_counter}
-        last_reset = Map.get state, :last_reset, {0,0,0}
-        now = :erlang.timestamp
-        state = if (state.last_send == :"$end_of_table") and (:timer.now_diff(now, last_reset) > 250000) do
-            #IO.inspect {__MODULE__, :reset, :ets.first(state.send_queue)}
-            %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
-        else
-            state
-        end
-        if (state.last_send < state.send_counter) do
+      end
 
-            case (:ets.lookup state.send_queue, state.last_send) do
-                [{packet_id, {conn_id, data}}] ->
-                    #IO.inspect {__MODULE__, :sending, state.last_send, state.send_counter, conn_id, byte_size(data)}
-                    sdata = << packet_id::64-little, data :: binary>>
+    if state.last_send < state.send_counter do
+      case :ets.lookup(state.send_queue, state.last_send) do
+        [{packet_id, {conn_id, data}}] ->
+          # IO.inspect {__MODULE__, :sending, state.last_send, state.send_counter, conn_id, byte_size(data)}
+          sdata = <<packet_id::64-little, data::binary>>
 
-                    key = Process.get(:key)
-                    key = if key == nil do
-                        k = Enum.reduce 1..128, "", fn(x, acc)->
-                            acc <> <<x, "BCDEFGH">>
-                        end
-                        Process.put(:key, k)
-                        k
-                    else
-                        key
-                    end
-                    sdata = :crypto.exor sdata, :binary.part(key, 0, byte_size(sdata))
+          key = Process.get(:key)
 
-                    :gen_udp.send(state.udpsocket, :inet.ntoa(host), port, sdata)
-                [] ->
-                    nil
+          key =
+            if key == nil do
+              k =
+                Enum.reduce(1..128, "", fn x, acc ->
+                  acc <> <<x, "BCDEFGH">>
+                end)
+
+              Process.put(:key, k)
+              k
+            else
+              key
             end
 
-            last_send = :ets.next(state.send_queue, state.last_send)
+          sdata = :crypto.exor(sdata, :binary.part(key, 0, byte_size(sdata)))
 
-            %{state | last_send: last_send}
-        else
-            state
-        end
-    end
+          :gen_udp.send(state.udpsocket, :inet.ntoa(host), port, sdata)
 
-    def update_lastsend(state = %{last_send: :"$end_of_table"}, send_queue) do
-        #IO.inspect {__MODULE__, :reset, send_queue}
-        Map.put state, :last_send, send_queue - 1
+        [] ->
+          nil
+      end
+
+      last_send = :ets.next(state.send_queue, state.last_send)
+
+      %{state | last_send: last_send}
+    else
+      state
     end
-    def update_lastsend(state, send_queue) do
-        #IO.inspect {__MODULE__, :noreset, send_queue}
-        state
-    end
+  end
+
+  def update_lastsend(state = %{last_send: :"$end_of_table"}, send_queue) do
+    # IO.inspect {__MODULE__, :reset, send_queue}
+    Map.put(state, :last_send, send_queue - 1)
+  end
+
+  def update_lastsend(state, send_queue) do
+    # IO.inspect {__MODULE__, :noreset, send_queue}
+    state
+  end
 end
