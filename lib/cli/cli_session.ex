@@ -33,7 +33,7 @@ defmodule ClientSess do
       buckets: [],
       last_req_again: {0, 0, 0},
       last_send_buckets: {0, 0, 0},
-      lastpong: 0
+      lastpong: :os.system_time(1000)
     }
 
     send(self(), :tick)
@@ -46,6 +46,7 @@ defmodule ClientSess do
     state =
       if :os.system_time(1000) - state.lastpong > 30000 do
         {:ok, udpsocket} = UdpClient.start(0, self())
+        Map.put(state, :udpsocket, udpsocket)
       else
         state
       end
@@ -71,7 +72,10 @@ defmodule ClientSess do
     dups = Process.get(:dups, 0)
     {oldnew, olddups} = Process.get(:old_stats, {0, 0})
 
-    IO.inspect({:stats5, (newpackets - oldnew) / 5, (dups - olddups) / 5})
+    IO.inspect(
+      {:stats5, :os.system_time(1000) - state.lastpong, (newpackets - oldnew) / 5,
+       (dups - olddups) / 5}
+    )
 
     Process.put(:old_stats, {newpackets, dups})
   end
@@ -180,6 +184,8 @@ defmodule ClientSess do
     end
 
     state = Map.put(state, :buckets, nbuckets)
+
+    state = Map.put(state, :lastpong, :os.system_time(1000))
 
     now = :erlang.timestamp()
     # if congestion too high, make the retry req 1 s
