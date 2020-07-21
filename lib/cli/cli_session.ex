@@ -16,7 +16,7 @@ defmodule ClientSess do
     {:ok, tcpuplink} = TcpUplink.start({remotehost, remoteport}, sessionid, self())
 
     # udp port
-    remoteport = 9099
+    remoteport = 8099
 
     Mitme.Acceptor.start_link(%{port: 9080, module: CliConn, session: self()})
 
@@ -45,6 +45,8 @@ defmodule ClientSess do
 
     state =
       if :os.system_time(1000) - state.lastpong > 30000 do
+        IO.puts "refreshing_udpsocket"
+        :gen_udp.close state.udpsocket
         {:ok, udpsocket} = UdpClient.start(0, self())
         Map.put(state, :udpsocket, udpsocket)
       else
