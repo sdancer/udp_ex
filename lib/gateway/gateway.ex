@@ -36,7 +36,7 @@ defmodule Gateway do
     :ssl.controlling_process(socket, pid)
     send(pid, {:socket, socket})
 
-    loop(listenSocket)
+    __MODULE__.loop(listenSocket)
   end
 
   def new_worker(socket) do
