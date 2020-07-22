@@ -40,9 +40,11 @@ defmodule Gateway do
   end
 
   def new_worker(socket) do
+    IO.puts "new connection"
     {:ok, socket} = :ssl.handshake(socket)
     :ssl.setopts(socket, [{:active, false}])
     IO.inspect(:ssl.recv(socket, 0))
+    :ssl.send(socket, "ok")
     # connect to dest
     # forward 
   end
