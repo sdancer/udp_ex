@@ -17,15 +17,13 @@ defmodule ClientSess do
     {a, b, c} = :erlang.now()
     sessionid = a * 1000 + b
 
-    {:ok, udpsocket} = UdpClient.start(9908, self())
+    {:ok, udpsocket} = UdpClient.start(0, self())
     {:ok, tcpuplink} = TcpUplink.start({remotehost, remoteport}, sessionid, self())
 
     # udp port
-    remoteport = 9099
+    remoteport = 8099
 
     Mitme.Acceptor.start_link(%{port: 9080, module: CliConn, session: self()})
-
-    send_queue = PacketQueue.new()
 
     state = %{
       send_queue: send_queue,
@@ -40,7 +38,8 @@ defmodule ClientSess do
       tcpuplink: tcpuplink,
       buckets: [],
       last_req_again: {0, 0, 0},
-      last_send_buckets: {0, 0, 0}
+      last_send_buckets: {0, 0, 0},
+      lastpong: :os.system_time(1000)
     }
 
     send(self(), :tick)
@@ -49,6 +48,17 @@ defmodule ClientSess do
 
   def handle_info(:tick, state) do
     :erlang.send_after(5000, self(), :tick)
+
+    state =
+      if :os.system_time(1000) - state.lastpong > 30000 do
+        IO.puts("refreshing_udpsocket")
+        :gen_udp.close(state.udpsocket)
+        {:ok, udpsocket} = UdpClient.start(0, self())
+        state = Map.put(state, :lastpong, :os.system_time(1000))
+        Map.put(state, :udpsocket, udpsocket)
+      else
+        state
+      end
 
     # send udp ping with session id
     {a, b, c} = :erlang.now()
@@ -71,7 +81,10 @@ defmodule ClientSess do
     dups = Process.get(:dups, 0)
     {oldnew, olddups} = Process.get(:old_stats, {0, 0})
 
-    IO.inspect({:stats5, (newpackets - oldnew) / 5, (dups - olddups) / 5})
+    IO.inspect(
+      {:stats5, :os.system_time(1000) - state.lastpong, (newpackets - oldnew) / 5,
+       (dups - olddups) / 5}
+    )
 
     Process.put(:old_stats, {newpackets, dups})
   end
@@ -162,7 +175,7 @@ defmodule ClientSess do
     <<packet_id::64-little, data::binary>> = bin
 
     pbuckets = state.buckets
-    {is_new, nbuckets} = add_to_sparse([], state.buckets, packet_id)
+    {is_new, nbuckets} = Sparse.add_to_sparse([], state.buckets, packet_id)
 
     case is_new do
       :ok ->
@@ -301,76 +314,5 @@ defmodule ClientSess do
        0::64-little,
        data_frame::64-little
      >>})
-  end
-
-  def add_to_sparse(h, [], packetid) do
-    {:ok, merge_sparse(h, [{packetid, packetid}])}
-  end
-
-  def add_to_sparse(h, [{s0, s1} | t] = origt, packetid) when packetid <= s0 and packetid >= s1 do
-    {:already_exists, merge_sparse(h, origt)}
-  end
-
-  def add_to_sparse(h, [{s0, s1} | t], packetid) when packetid == s0 + 1 do
-    {:ok, merge_sparse(h, [{packetid, s1} | t])}
-  end
-
-  def add_to_sparse(h, [{s0, s1} | t], packetid) when packetid > s0 do
-    {:ok, merge_sparse(h, [{packetid, packetid}, {s0, s1} | t])}
-  end
-
-  def add_to_sparse(h, [{s0, s1} | t], packetid) when packetid < s1 do
-    add_to_sparse([{s0, s1} | h], t, packetid)
-  end
-
-  def merge_sparse([], rest) do
-    rest
-  end
-
-  def merge_sparse([{big0, small0} | resth], [{big1, small1} | restl]) when small0 == big1 + 1 do
-    :lists.reverse([{big0, small1} | resth]) ++ restl
-  end
-
-  def merge_sparse(h, l) do
-    :lists.reverse(h) ++ l
-  end
-
-  def test() do
-    {:ok, [{0, 0}]} = ClientSess.add_to_sparse([], [], 0)
-
-    {:ok, s} = ClientSess.add_to_sparse([], [], 1)
-    IO.inspect(s)
-    {:ok, s} = ClientSess.add_to_sparse([], s, 3)
-    IO.inspect(s)
-    {:ok, s} = ClientSess.add_to_sparse([], s, 4)
-    IO.inspect(s)
-    {:ok, s} = ClientSess.add_to_sparse([], s, 7)
-    IO.inspect(s)
-    {:ok, s} = ClientSess.add_to_sparse([], s, 10)
-    IO.inspect(s)
-
-    {:ok, s} = ClientSess.add_to_sparse([], s, 5)
-    IO.inspect(s)
-
-    {:ok, s} = ClientSess.add_to_sparse([], s, 6)
-    IO.inspect(s)
-
-    {:already_exists, s} = ClientSess.add_to_sparse([], s, 6)
-    IO.inspect(s)
-
-    {:already_exists, s} = ClientSess.add_to_sparse([], s, 1)
-    IO.inspect(s)
-
-    {:ok, s} = ClientSess.add_to_sparse([], s, 2)
-    IO.inspect(s)
-
-    {:ok, s} = ClientSess.add_to_sparse([], s, 8)
-    IO.inspect(s)
-
-    {:ok, s} = ClientSess.add_to_sparse([], s, 9)
-    IO.inspect(s)
-
-    {:ok, s} = ClientSess.add_to_sparse([], s, 0)
-    IO.inspect(s)
   end
 end

@@ -5,6 +5,10 @@ defmodule ServTcp do
     GenServer.start(__MODULE__, params)
   end
 
+  def init(init_arg) do
+    {:ok, init_arg}
+  end
+
   def handle_info({:pass_socket, clientSocket}, state) do
     IO.inspect("#{__MODULE__} got client connection")
 

@@ -139,7 +139,10 @@ defmodule ServerSess do
           # IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
           # add to the udp list
           send_counter =
-            PacketQueue.insert_chunks(state.send_queue, {state.send_counter, {conn_id, offset, d}})
+            PacketQueue.insert_chunks(
+              state.send_queue,
+              {state.send_counter, {conn_id, offset, d}}
+            )
 
           state = update_lastsend(state, send_counter)
           %{state | send_counter: send_counter, reading_queue: reading_queue}
@@ -152,7 +155,10 @@ defmodule ServerSess do
           # notify the other side
           IO.inspect({__MODULE__, :conn_closed, conn_id})
           state = remove_conn(conn_id, state)
-          send_counter = PacketQueue.insert_close(state.send_queue, {state.send_counter, conn_id, offset})
+
+          send_counter =
+            PacketQueue.insert_close(state.send_queue, {state.send_counter, conn_id, offset})
+
           state = update_lastsend(state, send_counter)
           %{state | send_counter: send_counter}
 
