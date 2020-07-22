@@ -48,6 +48,7 @@ defmodule ClientSess do
         IO.puts "refreshing_udpsocket"
         :gen_udp.close state.udpsocket
         {:ok, udpsocket} = UdpClient.start(0, self())
+        state = Map.put state, :lastpong, :os.system_time(1000)
         Map.put(state, :udpsocket, udpsocket)
       else
         state
