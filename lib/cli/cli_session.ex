@@ -78,6 +78,10 @@ defmodule ClientSess do
     Process.put(:old_stats, {newpackets, dups})
   end
 
+  def handle_info({:ssl_closed, _}, state) do
+    {:noreply, state}
+  end
+
   def handle_info({:tcp_data, _, offset, data, proc}, state) do
     fproc = Enum.find(state.tcp_procs, fn {_, aconn} -> aconn.proc == proc end)
     # send to tcp uplink

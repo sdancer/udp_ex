@@ -15,8 +15,15 @@ defmodule UdpEx do
   def start(_, _) do
     cond do
       !!:os.getenv('SERVER') ->
-        pid = spawn(Gateway, :start, [443])
-        {:ok, pid}
+        children = [
+          {DynamicSupervisor, strategy: :one_for_one, name: MyApp.DynamicSupervisor},
+          %{
+            id: Gateway,
+            start: {Gateway, :start_link, [443]}
+          }
+        ]
+
+        Supervisor.start_link(children, strategy: :one_for_one)
 
       !!:os.getenv('CLIENT') ->
         IO.inspect("initializing client")
@@ -28,7 +35,6 @@ defmodule UdpEx do
         ClientSess.start_link(%{remotehost: remotehost})
 
       true ->
-        nil
         UdpEx.Supervisor.start_link([])
     end
   end

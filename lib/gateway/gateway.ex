@@ -6,17 +6,22 @@ defmodule Gateway do
   # simple fixed dest
   dest = ".."
 
-  def start(port \\ 443) do
-    :ssl.start()
+  def start_link(port \\ 443) do
+    pid =
+      spawn_link(fn ->
+        :ssl.start()
 
-    {:ok, listenSocket} =
-      :ssl.listen(port, [
-        {:certfile, 'private/end_cert/end.crt'},
-        {:keyfile, 'private/end_cert/end.key'},
-        {:reuseaddr, true}
-      ])
+        {:ok, listenSocket} =
+          :ssl.listen(port, [
+            {:certfile, 'private/end_cert/end.crt'},
+            {:keyfile, 'private/end_cert/end.key'},
+            {:reuseaddr, true}
+          ])
 
-    loop(listenSocket)
+        loop(listenSocket)
+      end)
+
+    {:ok, pid}
   end
 
   def loop(listenSocket) do
@@ -49,8 +54,12 @@ defmodule Gateway do
     case data do
       <<"newsession#"::binary, keysize::32-little, key::binary-size(keysize),
         session_id::64-little>> ->
+        Supervisor.child_spec({Agent, fn -> :ok end}, id: {Agent, session_id})
+        Supervisor.start_child()
         {:ok, pid, port_num} = ServerSess.init(session_id)
         :ssl.send(socket, <<"ok#", port_num::32-little>>)
+        :timer.sleep(1000)
+        :ssl.close(socket)
 
       "gw" ->
         # connect to dest
@@ -62,7 +71,7 @@ defmodule Gateway do
         reply = fake_http()
         :ssl.send(socket, reply)
         # simulate nginx empty page
-        :timer.sleep(3000)
+        :timer.sleep(1000)
         :ssl.close(socket)
     end
   end

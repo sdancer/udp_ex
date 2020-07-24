@@ -8,7 +8,13 @@ defmodule UdpChannel do
     :gen_udp.controlling_process(socket, proc)
     send(proc, :can_start)
 
-    {:ok, proc, socket}
+    send_queue =
+      receive do
+        {:send_queue, ^proc, send_queue} ->
+          send_queue
+      end
+
+    {:ok, proc, socket, send_queue}
   end
 
   def new_state(socket, session_id, remote_udp_point) do
