@@ -57,19 +57,19 @@ defmodule Gateway do
         {:ok, pid} =
           DynamicSupervisor.start_child(
             MyApp.DynamicSupervisor,
-            {Serversess, [session_id, self()]}
+            {ServerSess, [session_id, self()]}
           )
 
-    {:ok, port_num} =
-      receive do
-        {:port_num, pnum} ->
-          pnum
-      after
-        5000 ->
-          {:error, :time_out}
-      end
+        {:ok, port_num} =
+          receive do
+            {:port_num, pnum} ->
+              pnum
+          after
+            5000 ->
+              {:error, :time_out}
+          end
 
-       :ssl.send(socket, <<"ok#", port_num::32-little>>)
+        :ssl.send(socket, <<"ok#", port_num::32-little>>)
         :timer.sleep(1000)
         :ssl.close(socket)
 
