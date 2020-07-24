@@ -60,7 +60,7 @@ defmodule UdpChannel do
         throw(:time_out)
     end
 
-    send state.parent, {:send_queue, self(), self.send_queue}
+    send state.parent, {:send_queue, self(), state.send_queue}
 
     :inet.setopts(state.udpsocket, [{:active, true}])
 
