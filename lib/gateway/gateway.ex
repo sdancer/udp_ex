@@ -59,8 +59,22 @@ defmodule Gateway do
         :ssl.close(socket)
 
       _ ->
-        # simulate nginx empty page
-        nil
+        reply="""HTTP/2.0 200 OK
+cache-control: private, max-age=0
+content-type: text/html; charset=utf-8
+content-encoding: br
+vary: Accept-Encoding
+p3p: CP="NON UNI COM NAV STA LOC CURa DEVa PSAa PSDa OUR IND"
+set-cookie: SNRHOP=I=&TS=; domain=.bing.com; path=/
+set-cookie: DUP=Q=RP2bfjE7DpAQ-qRoJQRP0g2&T=396455174&A=2&IG=504098507AF5458385F323FE1767BEC2; domain=.bing.com; path=/search
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+x-msedge-ref: Ref A: 47BFA535C4B848C090FA9B5471AEF83C Ref B: HKGEDGE0317 Ref C: 2020-07-24T14:26:14Z
+date: Fri, 24 Jul 2020 14:26:13 GMT
+X-Firefox-Spdy: h2
+"""
+        :ssl.send(socket, reply)
+ # simulate nginx empty page
+        :timer.sleep(3000)
         :ssl.close(socket)
     end
   end

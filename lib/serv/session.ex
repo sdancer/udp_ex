@@ -8,16 +8,15 @@ defmodule ServerSess do
       spawn(fn ->
         parent = self()
 
-        {:ok, channel, udpsocket} = UdpChannel.server(0, session_id)
-
-        send_queue = PacketQueue.new()
+        {:ok, channel, udpsocket, send_queue} = UdpChannel.server(0, session_id)
 
         state = %{
           procs: %{},
           udpsocket: udpsocket,
           channel: channel,
           reading_queue: [],
-          session: session_id
+          session: session_id,
+          send_queue: send_queue,
         }
 
         pnum = :inet.port(udpsocket)
