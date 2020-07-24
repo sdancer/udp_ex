@@ -87,7 +87,7 @@ defmodule GatewayClient do
 
     :ssl.send(
       socket,
-      <<"newssesion#", byte_size(key)::32-little, key::binary, session_id::64-little>>
+      <<"newsession#", byte_size(key)::32-little, key::binary, session_id::64-little>>
     )
 
     res = :ssl.recv(socket, 0)
