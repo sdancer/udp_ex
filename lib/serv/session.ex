@@ -1,10 +1,8 @@
 defmodule ServerSess do
-  def init(session_id) do
+  def start_link(session_id, parent) do
     # has a uid
     # holds upstream tcp connections
     # holds a table for packets to send
-
-    parent = self()
 
     pid =
       spawn(fn ->
