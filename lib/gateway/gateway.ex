@@ -40,12 +40,55 @@ defmodule Gateway do
   end
 
   def new_worker(socket) do
-    IO.puts "new connection"
+    IO.puts("new connection")
     {:ok, socket} = :ssl.handshake(socket)
     :ssl.setopts(socket, [{:active, false}])
-    IO.inspect(:ssl.recv(socket, 0))
-    :ssl.send(socket, "ok")
-    # connect to dest
-    # forward 
+    data = :ssl.recv(socket, 0)
+    IO.inspect(data)
+
+    case data do
+      <<"newsession#"::binary, keysize::32-little, key::binary-size(keysize),
+        session_id::64-little>> ->
+        {:ok, pid, port_num} = ServerSess.init(session_id)
+        :ssl.send(socket, <<"ok#", port_num::32-little>>)
+        :ssl.close(socket)
+
+      "gw" ->
+        # connect to dest
+        # forward 
+        nil
+        :ssl.close(socket)
+
+      _ ->
+        # simulate nginx empty page
+        nil
+        :ssl.close(socket)
+    end
+  end
+end
+
+defmodule GatewayClient do
+  def newsession(remote_host, session_id) do
+    remote_host =
+      if is_list(remote_host) do
+        :binary.list_to_bin(remote_host)
+      else
+        remote_host
+      end
+
+    {:ok, socket} = :ssl.connect(remote_host, 443, [])
+    :ssl.setopts(socket, [{:active, false}])
+    key = "123"
+
+    :ssl.send(
+      socket,
+      <<"newssesion#", byte_size(key)::32-little, key::binary, session_id::64-little>>
+    )
+
+    res = :ssl.recv(socket, 0)
+    IO.inspect(res)
+    :ssl.close(socket)
+
+    res
   end
 end

@@ -3,7 +3,7 @@ defmodule Sparse do
     {:ok, merge_sparse(h, [{packetid, packetid}])}
   end
 
-  def add_to_sparse(h, [{s0, s1} | t] = origt, packetid) when packetid <= s0 and packetid >= s1 do
+  def add_to_sparse(h, [{s0, s1} | _t] = origt, packetid) when packetid <= s0 and packetid >= s1 do
     {:already_exists, merge_sparse(h, origt)}
   end
 
@@ -32,41 +32,41 @@ defmodule Sparse do
   end
 
   def test() do
-    {:ok, [{0, 0}]} = ClientSess.add_to_sparse([], [], 0)
+    {:ok, [{0, 0}]} = Sparse.add_to_sparse([], [], 0)
 
-    {:ok, s} = ClientSess.add_to_sparse([], [], 1)
+    {:ok, s} = Sparse.add_to_sparse([], [], 1)
     IO.inspect(s)
-    {:ok, s} = ClientSess.add_to_sparse([], s, 3)
+    {:ok, s} = Sparse.add_to_sparse([], s, 3)
     IO.inspect(s)
-    {:ok, s} = ClientSess.add_to_sparse([], s, 4)
+    {:ok, s} = Sparse.add_to_sparse([], s, 4)
     IO.inspect(s)
-    {:ok, s} = ClientSess.add_to_sparse([], s, 7)
+    {:ok, s} = Sparse.add_to_sparse([], s, 7)
     IO.inspect(s)
-    {:ok, s} = ClientSess.add_to_sparse([], s, 10)
-    IO.inspect(s)
-
-    {:ok, s} = ClientSess.add_to_sparse([], s, 5)
+    {:ok, s} = Sparse.add_to_sparse([], s, 10)
     IO.inspect(s)
 
-    {:ok, s} = ClientSess.add_to_sparse([], s, 6)
+    {:ok, s} = Sparse.add_to_sparse([], s, 5)
     IO.inspect(s)
 
-    {:already_exists, s} = ClientSess.add_to_sparse([], s, 6)
+    {:ok, s} = Sparse.add_to_sparse([], s, 6)
     IO.inspect(s)
 
-    {:already_exists, s} = ClientSess.add_to_sparse([], s, 1)
+    {:already_exists, s} = Sparse.add_to_sparse([], s, 6)
     IO.inspect(s)
 
-    {:ok, s} = ClientSess.add_to_sparse([], s, 2)
+    {:already_exists, s} = Sparse.add_to_sparse([], s, 1)
     IO.inspect(s)
 
-    {:ok, s} = ClientSess.add_to_sparse([], s, 8)
+    {:ok, s} = Sparse.add_to_sparse([], s, 2)
     IO.inspect(s)
 
-    {:ok, s} = ClientSess.add_to_sparse([], s, 9)
+    {:ok, s} = Sparse.add_to_sparse([], s, 8)
     IO.inspect(s)
 
-    {:ok, s} = ClientSess.add_to_sparse([], s, 0)
+    {:ok, s} = Sparse.add_to_sparse([], s, 9)
+    IO.inspect(s)
+
+    {:ok, s} = Sparse.add_to_sparse([], s, 0)
     IO.inspect(s)
   end
 end

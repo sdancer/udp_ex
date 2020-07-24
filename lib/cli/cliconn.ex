@@ -85,11 +85,13 @@ defmodule CliConn do
   end
 
   def handle_info({:tcp, socket, bin}, state) do
-    # IO.inspect {"got data", socket, bin}
+    offset = state.offset 
 
-    send(state.session, {:tcp_data, self(), bin})
+    conn_id = nil #FIXME: info not available yet 
+    send(state.session, {:tcp_data, conn_id, offset, bin, self()})
 
-    # send to session
+    state = Map.put(state, :offset, offset + byte_size(bin))
+
     {:noreply, state}
   end
 
@@ -97,6 +99,20 @@ defmodule CliConn do
     send(state.session, {:tcp_closed, self()})
 
     {:stop, :normal, nil}
+  end
+
+  def unfold_queue(state) do
+    case :ets.lookup(state.packet_queue, state.sent) do
+      [] ->
+        state
+
+      [{offset, bin}] ->
+        # IO.inspect {__MODULE__, :unfolding_queue, offset, byte_size(bin)}
+        :ets.delete(state.packet_queue, offset)
+        :gen_tcp.send(state.socket, bin)
+        state = Map.merge(state, %{sent: offset + byte_size(bin)})
+        unfold_queue(state)
+    end
   end
 
   def sock5_handshake(clientSocket) do
@@ -135,19 +151,5 @@ defmodule CliConn do
     destAddr = {a, b, c, d}
     destAddrBin = :unicode.characters_to_binary(:inet_parse.ntoa(destAddr))
     {destAddrBin, destPort}
-  end
-
-  def unfold_queue(state) do
-    case :ets.lookup(state.packet_queue, state.sent) do
-      [] ->
-        state
-
-      [{offset, bin}] ->
-        # IO.inspect {__MODULE__, :unfolding_queue, offset, byte_size(bin)}
-        :ets.delete(state.packet_queue, offset)
-        :gen_tcp.send(state.socket, bin)
-        state = Map.merge(state, %{sent: offset + byte_size(bin)})
-        unfold_queue(state)
-    end
   end
 end

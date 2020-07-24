@@ -10,7 +10,16 @@ defmodule ServTcpCli do
 
   def init(args) do
     send(self(), :connect)
-    state = Map.merge(args, %{socket: nil})
+    packet_queue = :ets.new(:packet_queue, [:public, :ordered_set])
+
+    state =
+      Map.merge(args, %{
+        socket: nil,
+        packet_queue: packet_queue,
+        sent: 0,
+        close_at: nil
+      })
+
     {:ok, state}
   end
 
@@ -56,15 +65,65 @@ defmodule ServTcpCli do
     {:noreply, state}
   end
 
-  def handle_info({:send, data}, state) do
-    :gen_tcp.send(state.socket, data)
+  def handle_info({:close_conn, offset}, state = %{sent: sent}) do
+    if state.sent == offset do
+      IO.inspect({__MODULE__, :close_conn, sent})
+      :gen_tcp.close(state.socket)
+      send(state.session, {:tcp_closed, self()})
+      {:stop, :normal, state}
+    else
+      IO.inspect({__MODULE__, :ignoring_close, offset, sent})
+      state = Map.put(state, :close_at, offset)
+      {:noreply, state}
+    end
+  end
 
+  def handle_info({:queue, offset, _bin}, state = %{sent: sent}) when offset < sent do
+    # IO.inspect {:discarted_queue_packet, offset, sent}
     {:noreply, state}
+  end
+
+  def handle_info({:queue, offset, bin}, state) do
+    state =
+      if offset == state.sent do
+        :gen_tcp.send(state.socket, bin)
+        state = Map.merge(state, %{sent: offset + byte_size(bin)})
+        unfold_queue(state)
+      else
+        # IO.inspect {__MODULE__, :queing_data, state.sent, offset, byte_size(bin)}
+        :ets.insert(state.packet_queue, {offset, bin})
+        state
+      end
+
+    cond do
+      !!state[:close_at] && state.sent >= state[:close_at] ->
+        IO.inspect({__MODULE__, :close_reached, state.sent})
+        :gen_tcp.close(state.socket)
+        send(state.session, {:tcp_closed, self()})
+        {:stop, :normal, state}
+
+      true ->
+        {:noreply, state}
+    end
   end
 
   def handle_info(:continue_reading, state) do
     :inet.setopts(state.socket, [{:active, :once}])
 
     {:noreply, state}
+  end
+
+  def unfold_queue(state) do
+    case :ets.lookup(state.packet_queue, state.sent) do
+      [] ->
+        state
+
+      [{offset, bin}] ->
+        # IO.inspect {__MODULE__, :unfolding_queue, offset, byte_size(bin)}
+        :ets.delete(state.packet_queue, offset)
+        :gen_tcp.send(state.socket, bin)
+        state = Map.merge(state, %{sent: offset + byte_size(bin)})
+        unfold_queue(state)
+    end
   end
 end

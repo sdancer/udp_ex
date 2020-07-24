@@ -1,53 +1,71 @@
 defmodule ServerSess do
-  def init() do
-    # send self(), :tick
+  def init(session_id) do
     # has a uid
     # holds upstream tcp connections
     # holds a table for packets to send
-    Mitme.Acceptor.start_link(%{port: 9099, module: ServTcp, session: self()})
-    {:ok, udpsocket} = ServerUdp.start(9099, self())
 
-    send_queue = PacketQueue.new()
+    pid =
+      spawn(fn ->
+        parent = self()
 
-    state = %{
-      remote_udp_endpoint: nil,
-      send_queue: send_queue,
-      send_counter: 0,
-      last_send: 0,
-      last_reset: {0, 0, 0},
-      procs: %{},
-      udpsocket: udpsocket,
-      reading_queue: []
-    }
+        {:ok, channel, udpsocket} = UdpChannel.server(0, session_id)
 
-    # {:ok, state}
-    loop(state)
+        send_queue = PacketQueue.new()
+
+        state = %{
+          procs: %{},
+          udpsocket: udpsocket,
+          channel: channel,
+          reading_queue: [],
+          session: session_id
+        }
+
+        pnum = :inet.port(udpsocket)
+
+        send(parent, {:port_num, pnum})
+
+        loop(state)
+      end)
+
+    {:ok, pnum} =
+      receive do
+        {:port_num, pnum} ->
+          pnum
+      after
+        5000 ->
+          {:error, :time_out}
+      end
+
+    {:ok, pid, pnum}
   end
 
-  def print_report(state) do
-    now = :erlang.timestamp()
+  # def print_report(state) do
+  #  now = :erlang.timestamp()
 
-    if :timer.now_diff(now, Process.get(:last_report, {0, 0, 0})) > 1_000_000 do
-      Process.put(:last_report, now)
+  #  if :timer.now_diff(now, Process.get(:last_report, {0, 0, 0})) > 1_000_000 do
+  #    Process.put(:last_report, now)
 
-      {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+  #    {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
 
-      udp_data = Process.put({:series, :udp_data}, 0)
+  #    udp_data = Process.put({:series, :udp_data}, 0)
 
-      IO.puts(
-        "serv stats: #{
-          inspect(
-            {:presure, pressure, :last_send, state.last_send, :send_counter, state.send_counter,
-             :received_udp_data, udp_data}
-          )
-        }"
-      )
-    end
-  end
+  #    IO.puts(
+  #      "serv stats: #{
+  #        inspect(
+  #          {:presure, pressure, :last_send, state.last_send, :send_counter, state.send_counter,
+  #           :received_udp_data, udp_data}
+  #        )
+  #      }"
+  #    )
+  #  end
+  # end
 
   def loop(state) do
-    state = dispatch_packets(state.remote_udp_endpoint, state)
     {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+
+    if :os.system_time(1000) - state.last_packet > 300_000 do
+      throw :time_out
+    end
 
     state =
       if pressure <= 1000 do
@@ -63,15 +81,7 @@ defmodule ServerSess do
         state
       end
 
-    state =
-      if pressure < 500 do
-        state
-      else
-        state = dispatch_packets(state.remote_udp_endpoint, state)
-        state = dispatch_packets(state.remote_udp_endpoint, state)
-      end
-
-    print_report(state)
+    # print_report(state)
 
     state = receive_loop(state)
 
@@ -81,48 +91,24 @@ defmodule ServerSess do
   def receive_loop(state) do
     result =
       receive do
-        {:add_con, conn_id, dest_host, dest_port} ->
-          # launch a connection
-          {:ok, pid} = ServTcpCli.start({dest_host, dest_port}, conn_id, self())
-          procs = Map.put(state.procs, conn_id, %{proc: pid})
-          %{state | procs: procs}
-
-        {:con_data, conn_id, send_bytes} ->
-          # IO.inspect {__MODULE__, :con_data, conn_id, byte_size(send_bytes)}
-          # send bytes to the tcp conn
-          proc = Map.get(state.procs, conn_id, nil)
+        {:DOWN, _ref, :process, pid, _reason} ->
+          # proc = Map.get(state.procs, conn_id, nil)
+          proc =
+            Enum.find(state.procs, fn {_key, aproc} ->
+              aproc.proc == pid
+            end)
 
           case proc do
-            %{proc: proc} ->
-              send(proc, {:send, send_bytes})
+            nil ->
+              state
 
-            _ ->
-              nil
+            {conn_id, _} ->
+              state = remove_conn(conn_id, state)
+
+              UdpChannel.queue(state.channel, encode_cmd({:rm_con, conn_id, 0}))
+
+              state
           end
-
-          state
-
-        {:ack_data, conn_id, data_frame} ->
-          :ets.delete(state.send_queue, data_frame)
-          state
-
-        {:req_again, conn_id, data_frame} ->
-          case :ets.lookup(state.send_queue, data_frame) do
-            [] ->
-              IO.puts("req_again_not_exists!!!!!!")
-
-            _ ->
-              nil
-          end
-
-          {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
-
-          IO.inspect({__MODULE__, :req_again, conn_id, data_frame, pressure})
-          %{state | last_send: data_frame}
-
-        {:rm_con, conn_id} ->
-          # kill a connection
-          remove_conn(conn_id, state)
 
         {:tcp_data, conn_id, offset, d, proc} ->
           {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
@@ -138,14 +124,10 @@ defmodule ServerSess do
 
           # IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
           # add to the udp list
-          send_counter =
-            PacketQueue.insert_chunks(
-              state.send_queue,
-              {state.send_counter, {conn_id, offset, d}}
-            )
 
-          state = update_lastsend(state, send_counter)
-          %{state | send_counter: send_counter, reading_queue: reading_queue}
+          UdpChannel.queue(state.channel, encode_cmd({:con_data, conn_id, offset, d}))
+
+          %{state | reading_queue: reading_queue}
 
         {:tcp_connected, conn_id} ->
           # notify the other side
@@ -156,44 +138,12 @@ defmodule ServerSess do
           IO.inspect({__MODULE__, :conn_closed, conn_id})
           state = remove_conn(conn_id, state)
 
-          send_counter =
-            PacketQueue.insert_close(state.send_queue, {state.send_counter, conn_id, offset})
+          UdpChannel.queue(state.channel, encode_cmd({:rm_con, conn_id, offset}))
 
-          state = update_lastsend(state, send_counter)
-          %{state | send_counter: send_counter}
+          state
 
-        {:udp_data, host, port, data} ->
-          Process.put({:series, :udp_data}, Process.get({:series, :udp_data}, 0) + 1)
-          # IO.inspect {:udp_data, Process.get {:series, :udp_data}}
-
-          # TODO: verify the sessionid?
-          # TODO: decrypt
-          case data do
-            <<sessionid::64-little, ackmin::64-little, buckets::32-little, rest::binary>> ->
-              buckets =
-                if buckets == 0,
-                  do: [],
-                  else:
-                    (
-                      {b, ""} =
-                        Enum.reduce(1..buckets, {[], rest}, fn x, {acc, rest} ->
-                          <<bend::64-little, bstart::64-little, rest::binary>> = rest
-                          {[{bend, bstart} | acc], rest}
-                        end)
-
-                      b
-                    )
-
-              Enum.each(buckets, fn {send, start} ->
-                PacketQueue.delete_entries(state.send_queue, send + 1, start)
-              end)
-
-              # IO.inspect {:got_buckets, buckets}
-              %{state | remote_udp_endpoint: {host, port}}
-
-            _ ->
-              %{state | remote_udp_endpoint: {host, port}}
-          end
+        {:udp_data, data} ->
+          process_udp_data(data, state)
 
         a ->
           IO.inspect({:received, a})
@@ -206,6 +156,66 @@ defmodule ServerSess do
     case result do
       :timeout -> state
       _ -> receive_loop(result)
+    end
+  end
+
+  def encode_cmd(data) do
+    case data do
+      {:add_con, conn_id, dest_host, dest_port} ->
+        dsize = byte_size(dest_host)
+        <<1, conn_id::32-little, dsize, dest_host::binary-size(dsize), dest_port::16-little>>
+
+      {:con_data, conn_id, offset, send_bytes} ->
+        <<2, conn_id::32-little, offset::64-little, send_bytes::binary>>
+
+      {:rm_con, conn_id, offset} ->
+        <<3, conn_id::32-little, offset::64-little>>
+    end
+  end
+
+  def decode_cmd(data) do
+    case data do
+      <<1, conn_id::32-little, dsize::8, dest_host::binary-size(dsize), dest_port::16-little>> ->
+        {:add_con, conn_id, dest_host, dest_port}
+
+      <<2, conn_id::32-little, offset::64-little, send_bytes::binary>> ->
+        {:con_data, conn_id, offset, send_bytes}
+
+      <<3, conn_id::32-little, offset::64-little>> ->
+        {:rm_con, conn_id, offset}
+    end
+  end
+
+  def process_udp_data(data, state) do
+    Process.put({:series, :udp_data}, Process.get({:series, :udp_data}, 0) + 1)
+    # IO.inspect {:udp_data, Process.get {:series, :udp_data}}
+
+    case decode_cmd(data) do
+      {:add_con, conn_id, dest_host, dest_port} ->
+        # launch a connection
+        {:ok, pid} = ServTcpCli.start({dest_host, dest_port}, conn_id, self())
+        ref = :erlang.monitor(:process, pid)
+        procs = Map.put(state.procs, conn_id, %{proc: pid, conn_id: conn_id})
+        %{state | procs: procs}
+
+      {:con_data, conn_id, offset, sent_bytes} ->
+        # IO.inspect {__MODULE__, :con_data, conn_id, byte_size(send_bytes)}
+        # send bytes to the tcp conn
+        proc = Map.get(state.procs, conn_id, nil)
+
+        case proc do
+          %{proc: proc} ->
+            send(proc, {:queue, offset, sent_bytes})
+
+          _ ->
+            nil
+        end
+
+        state
+
+      {:rm_con, conn_id} ->
+        # kill a connection
+        remove_conn(conn_id, state)
     end
   end
 
@@ -223,63 +233,6 @@ defmodule ServerSess do
     procs = Map.delete(state.procs, conn_id)
 
     %{state | procs: procs}
-  end
-
-  def dispatch_packets(nil, state) do
-    state
-  end
-
-  def dispatch_packets({host, port}, state) do
-    # do we have packets to send?
-    # last ping?
-    # pps ?
-    # IO.inspect {state.last_send, state.send_counter}
-    last_reset = Map.get(state, :last_reset, {0, 0, 0})
-    now = :erlang.timestamp()
-
-    state =
-      if state.last_send == :"$end_of_table" and :timer.now_diff(now, last_reset) > 250_000 do
-        # IO.inspect {__MODULE__, :reset, :ets.first(state.send_queue)}
-        %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
-      else
-        state
-      end
-
-    if state.last_send < state.send_counter do
-      case :ets.lookup(state.send_queue, state.last_send) do
-        [{packet_id, {conn_id, data}}] ->
-          # IO.inspect {__MODULE__, :sending, state.last_send, state.send_counter, conn_id, byte_size(data)}
-          sdata = <<packet_id::64-little, data::binary>>
-
-          key = Process.get(:key)
-
-          key =
-            if key == nil do
-              k =
-                Enum.reduce(1..128, "", fn x, acc ->
-                  acc <> <<x, "BCDEFGH">>
-                end)
-
-              Process.put(:key, k)
-              k
-            else
-              key
-            end
-
-          sdata = :crypto.exor(sdata, :binary.part(key, 0, byte_size(sdata)))
-
-          :gen_udp.send(state.udpsocket, :inet.ntoa(host), port, sdata)
-
-        [] ->
-          nil
-      end
-
-      last_send = :ets.next(state.send_queue, state.last_send)
-
-      %{state | last_send: last_send}
-    else
-      state
-    end
   end
 
   def update_lastsend(state = %{last_send: :"$end_of_table"}, send_queue) do
