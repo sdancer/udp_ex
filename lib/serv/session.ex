@@ -17,6 +17,7 @@ defmodule ServerSess do
           reading_queue: [],
           session: session_id,
           send_queue: send_queue,
+          last_packet: :os.system_time(1000),
         }
 
         pnum = :inet.port(udpsocket)
@@ -142,6 +143,7 @@ defmodule ServerSess do
           state
 
         {:udp_data, data} ->
+          state = %{state | last_packet: :os.system_time(1000)}
           process_udp_data(data, state)
 
         a ->
