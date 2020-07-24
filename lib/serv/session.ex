@@ -4,7 +4,7 @@ defmodule ServerSess do
       id: __MODULE__,
       start: {__MODULE__, :start_link, [opts]},
       type: :worker,
-      restart: :temporal,
+      restart: :temporary,
       shutdown: 500
     }
   end
