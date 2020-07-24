@@ -42,7 +42,7 @@ defmodule Gateway do
   def new_worker(socket) do
     IO.puts("new connection")
     {:ok, socket} = :ssl.handshake(socket)
-    :ssl.setopts(socket, [{:active, false}])
+    :ssl.setopts(socket, [{:active, false}, :binary])
     data = :ssl.recv(socket, 0)
     IO.inspect(data)
 
@@ -80,7 +80,7 @@ defmodule GatewayClient do
     IO.inspect "connecting to gw #{remote_host}"
 
     {:ok, socket} = :ssl.connect(remote_host, 443, [])
-    :ssl.setopts(socket, [{:active, false}])
+    :ssl.setopts(socket, [{:active, false}, :binary])
     key = "123"
 
     IO.inspect "connected"
