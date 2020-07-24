@@ -1,5 +1,15 @@
 defmodule ServerSess do
-  def start_link(session_id, parent) do
+  def child_spec(opts) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [opts]},
+      type: :worker,
+      restart: :temporal,
+      shutdown: 500
+    }
+  end
+
+  def start_link([session_id, parent]) do
     # has a uid
     # holds upstream tcp connections
     # holds a table for packets to send
