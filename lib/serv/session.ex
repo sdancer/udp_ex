@@ -25,16 +25,7 @@ defmodule ServerSess do
         loop(state)
       end)
 
-    {:ok, pnum} =
-      receive do
-        {:port_num, pnum} ->
-          pnum
-      after
-        5000 ->
-          {:error, :time_out}
-      end
-
-    {:ok, pid, pnum}
+    {:ok, pid}
   end
 
   # def print_report(state) do

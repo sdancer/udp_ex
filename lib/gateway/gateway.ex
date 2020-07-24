@@ -60,9 +60,16 @@ defmodule Gateway do
             {Serversess, [session_id, self()]}
           )
 
-        # {:ok, pid, port_num} = ServerSess.init(session_id)
+    {:ok, pnum} =
+      receive do
+        {:port_num, pnum} ->
+          pnum
+      after
+        5000 ->
+          {:error, :time_out}
+      end
 
-        :ssl.send(socket, <<"ok#", port_num::32-little>>)
+       :ssl.send(socket, <<"ok#", port_num::32-little>>)
         :timer.sleep(1000)
         :ssl.close(socket)
 
