@@ -15,7 +15,7 @@ defmodule UdpEx do
   def start(_, _) do
     cond do
       !!:os.getenv('SERVER') ->
-        pid = spawn(ServerSess, :init, [])
+        pid = spawn(Gateway, :start, [443])
         {:ok, pid}
 
       !!:os.getenv('CLIENT') ->
