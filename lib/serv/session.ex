@@ -4,10 +4,10 @@ defmodule ServerSess do
     # holds upstream tcp connections
     # holds a table for packets to send
 
+    parent = self()
+
     pid =
       spawn(fn ->
-        parent = self()
-
         {:ok, channel, udpsocket, send_queue} = UdpChannel.server(0, session_id)
 
         state = %{
@@ -17,7 +17,7 @@ defmodule ServerSess do
           reading_queue: [],
           session: session_id,
           send_queue: send_queue,
-          last_packet: :os.system_time(1000),
+          last_packet: :os.system_time(1000)
         }
 
         pnum = :inet.port(udpsocket)
@@ -64,7 +64,7 @@ defmodule ServerSess do
     {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
 
     if :os.system_time(1000) - state.last_packet > 300_000 do
-      throw :time_out
+      throw(:time_out)
     end
 
     state =

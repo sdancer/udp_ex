@@ -38,11 +38,11 @@ defmodule UdpChannel do
     :gen_udp.controlling_process(socket, proc)
     send(proc, :can_start)
 
-    send_queue = receive do
-      {:send_queue, ^proc, send_queue} ->
-        send_queue
-    end
-
+    send_queue =
+      receive do
+        {:send_queue, ^proc, send_queue} ->
+          send_queue
+      end
 
     {:ok, proc, socket, send_queue}
   end
@@ -60,7 +60,7 @@ defmodule UdpChannel do
         throw(:time_out)
     end
 
-    send state.parent, {:send_queue, self(), state.send_queue}
+    send(state.parent, {:send_queue, self(), state.send_queue})
 
     :inet.setopts(state.udpsocket, [{:active, true}])
 

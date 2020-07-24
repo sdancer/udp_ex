@@ -3,7 +3,8 @@ defmodule Sparse do
     {:ok, merge_sparse(h, [{packetid, packetid}])}
   end
 
-  def add_to_sparse(h, [{s0, s1} | _t] = origt, packetid) when packetid <= s0 and packetid >= s1 do
+  def add_to_sparse(h, [{s0, s1} | _t] = origt, packetid)
+      when packetid <= s0 and packetid >= s1 do
     {:already_exists, merge_sparse(h, origt)}
   end
 

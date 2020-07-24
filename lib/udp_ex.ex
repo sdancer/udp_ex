@@ -19,19 +19,18 @@ defmodule UdpEx do
         {:ok, pid}
 
       !!:os.getenv('CLIENT') ->
-        IO.inspect "initializing client"
+        IO.inspect("initializing client")
 
         remotehost = "35.221.206.207"
 
         remotehost = "95.217.38.33"
 
-        ClientSess.start_link( %{remotehost: remotehost})
+        ClientSess.start_link(%{remotehost: remotehost})
 
       true ->
         nil
-       UdpEx.Supervisor.start_link([])
+        UdpEx.Supervisor.start_link([])
     end
-
   end
 end
 

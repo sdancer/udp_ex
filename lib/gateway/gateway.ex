@@ -59,7 +59,16 @@ defmodule Gateway do
         :ssl.close(socket)
 
       _ ->
-        reply="HTTP/2.0 200 OK
+        reply = fake_http()
+        :ssl.send(socket, reply)
+        # simulate nginx empty page
+        :timer.sleep(3000)
+        :ssl.close(socket)
+    end
+  end
+
+  def fake_http() do
+    "HTTP/2.0 200 OK
 cache-control: private, max-age=0
 content-type: text/html; charset=utf-8
 content-encoding: br
@@ -72,17 +81,12 @@ x-msedge-ref: Ref A: 47BFA535C4B848C090FA9B5471AEF83C Ref B: HKGEDGE0317 Ref C: 
 date: Fri, 24 Jul 2020 14:26:13 GMT
 X-Firefox-Spdy: h2
 "
-        :ssl.send(socket, reply)
- # simulate nginx empty page
-        :timer.sleep(3000)
-        :ssl.close(socket)
-    end
   end
 end
 
 defmodule GatewayClient do
   def newsession(remote_host, session_id) do
-    :ssl.start
+    :ssl.start()
 
     remote_host =
       if is_binary(remote_host) do
@@ -90,14 +94,14 @@ defmodule GatewayClient do
       else
         remote_host
       end
-    
-    IO.inspect "connecting to gw #{remote_host}"
+
+    IO.inspect("connecting to gw #{remote_host}")
 
     {:ok, socket} = :ssl.connect(remote_host, 443, [])
     :ssl.setopts(socket, [{:active, false}, :binary])
     key = "123"
 
-    IO.inspect "connected"
+    IO.inspect("connected")
 
     :ssl.send(
       socket,

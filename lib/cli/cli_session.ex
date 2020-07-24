@@ -18,7 +18,8 @@ defmodule ClientSess do
     {:ok, portnum} = GatewayClient.newsession(args.remotehost, session_id)
 
     # {:ok, tcpuplink} = TcpUplink.start({remotehost, remoteport}, session_id, self())
-    {:ok, udpchannel, socket, send_queue} = UdpChannel.client(args.remotehost, portnum, session_id)
+    {:ok, udpchannel, socket, send_queue} =
+      UdpChannel.client(args.remotehost, portnum, session_id)
 
     Mitme.Acceptor.start_link(%{port: 9080, module: CliConn, session: self()})
 
@@ -84,7 +85,10 @@ defmodule ClientSess do
       {_, %{conn_id: conn_id}} ->
         IO.inspect({:sending_tcp_data, conn_id, byte_size(data)})
 
-        UdpChannel.queue(state.udpchannel, ServerSess.encode_cmd({:con_data, conn_id, offset, data}))
+        UdpChannel.queue(
+          state.udpchannel,
+          ServerSess.encode_cmd({:con_data, conn_id, offset, data})
+        )
 
       _ ->
         Process.exit(proc, :normal)
@@ -93,7 +97,7 @@ defmodule ClientSess do
 
     {:noreply, state}
   end
-       
+
   def handle_info({:tcp_add, proc, dest_host, dest_port}, state) do
     conn_id = state.next_conn_id
 

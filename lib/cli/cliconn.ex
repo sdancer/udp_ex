@@ -85,9 +85,10 @@ defmodule CliConn do
   end
 
   def handle_info({:tcp, socket, bin}, state) do
-    offset = state.offset 
+    offset = state.offset
 
-    conn_id = nil #FIXME: info not available yet 
+    # FIXME: info not available yet 
+    conn_id = nil
     send(state.session, {:tcp_data, conn_id, offset, bin, self()})
 
     state = Map.put(state, :offset, offset + byte_size(bin))
