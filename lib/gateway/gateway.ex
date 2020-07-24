@@ -60,7 +60,7 @@ defmodule Gateway do
             {Serversess, [session_id, self()]}
           )
 
-    {:ok, pnum} =
+    {:ok, port_num} =
       receive do
         {:port_num, pnum} ->
           pnum
