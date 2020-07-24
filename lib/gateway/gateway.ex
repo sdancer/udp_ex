@@ -43,7 +43,7 @@ defmodule Gateway do
     IO.puts("new connection")
     {:ok, socket} = :ssl.handshake(socket)
     :ssl.setopts(socket, [{:active, false}, :binary])
-    data = :ssl.recv(socket, 0)
+    {:ok, data} = :ssl.recv(socket, 0)
     IO.inspect(data)
 
     case data do
