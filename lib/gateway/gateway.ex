@@ -51,7 +51,6 @@ defmodule Gateway do
         session_id::64-little>> ->
         {:ok, pid, port_num} = ServerSess.init(session_id)
         :ssl.send(socket, <<"ok#", port_num::32-little>>)
-        :ssl.close(socket)
 
       "gw" ->
         # connect to dest
@@ -69,16 +68,22 @@ end
 
 defmodule GatewayClient do
   def newsession(remote_host, session_id) do
+    :ssl.start
+
     remote_host =
-      if is_list(remote_host) do
-        :binary.list_to_bin(remote_host)
+      if is_binary(remote_host) do
+        :binary.bin_to_list(remote_host)
       else
         remote_host
       end
+    
+    IO.inspect "connecting to gw #{remote_host}"
 
     {:ok, socket} = :ssl.connect(remote_host, 443, [])
     :ssl.setopts(socket, [{:active, false}])
     key = "123"
+
+    IO.inspect "connected"
 
     :ssl.send(
       socket,

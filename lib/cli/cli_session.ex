@@ -5,22 +5,20 @@ defmodule ClientSess do
     [:something, :something, :something]
   end
 
-  def start(args \\ %{}) do
-    GenServer.start(__MODULE__, args)
+  def start_link(args \\ %{}) do
+    GenServer.start_link(__MODULE__, args)
   end
 
   def init(args) do
-    remotehost = "95.217.38.33"
-    remotehost = "35.221.206.207"
-
     {a, b, c} = :erlang.now()
     session_id = a * 1000 + b
 
+    remotehost = args.remotehost
     # udp port
-    {:ok, portnum} = GatewayClient.newsession(remotehost, session_id)
+    {:ok, portnum} = GatewayClient.newsession(args.remotehost, session_id)
 
     # {:ok, tcpuplink} = TcpUplink.start({remotehost, remoteport}, session_id, self())
-    {:ok, udpchannel, socket} = UdpChannel.client(remotehost, portnum, session_id)
+    {:ok, udpchannel, socket} = UdpChannel.client(args.remotehost, portnum, session_id)
 
     Mitme.Acceptor.start_link(%{port: 9080, module: CliConn, session: self()})
 
