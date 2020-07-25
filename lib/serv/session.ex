@@ -104,7 +104,7 @@ defmodule ServerSess do
             {conn_id, _} ->
               state = remove_conn(conn_id, state)
 
-              UdpChannel.queue(state.channel, encode_cmd({:rm_con, conn_id, 0}))
+              UdpChannel.queue_app(state.channel, encode_cmd({:rm_con, conn_id, 0}))
 
               state
           end
@@ -124,7 +124,7 @@ defmodule ServerSess do
           # IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
           # add to the udp list
 
-          UdpChannel.queue(state.channel, encode_cmd({:con_data, conn_id, offset, d}))
+          UdpChannel.queue_data(state.channel, {:con_data, conn_id, offset, d})
 
           %{state | reading_queue: reading_queue}
 
@@ -137,7 +137,7 @@ defmodule ServerSess do
           IO.inspect({__MODULE__, :conn_closed, conn_id})
           state = remove_conn(conn_id, state)
 
-          UdpChannel.queue(state.channel, encode_cmd({:rm_con, conn_id, offset}))
+          UdpChannel.queue_app(state.channel, encode_cmd({:rm_con, conn_id, offset}))
 
           state
 

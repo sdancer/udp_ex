@@ -54,7 +54,11 @@ defmodule UdpChannel do
   end
 
   def queue(chan, data) do
-    send(chan, {:send_data, data})
+    send(chan, {:queue_app, data})
+  end
+
+  def queue_data(chan, data) do
+     send(chan, {:queue_data, data})
   end
 
   def start_loop(state) do
@@ -83,7 +87,7 @@ defmodule UdpChannel do
 
   def receive_loop(socket, state) do
     receive do
-      {:send_data, data} ->
+      {:queue_app, data} ->
         IO.inspect({:queueing_data, data})
 
         send_counter =
@@ -91,6 +95,16 @@ defmodule UdpChannel do
 
         state = %{state | send_counter: send_counter}
         receive_loop(socket, state)
+
+      {:queue_data, {:con_data, conn_id, offset, send_bytes}} ->
+        IO.inspect({:queueing_data, data})
+
+        send_counter =
+          PacketQueue.insert_chunks(state.send_queue, {state.send_counter, {0, 0, data}})
+
+        state = %{state | send_counter: send_counter}
+        receive_loop(socket, state)
+
 
       {:udp, socket, host, port, bin} ->
         # IO.inspect {"received", session_id, host, port, bin}
@@ -127,7 +141,7 @@ defmodule UdpChannel do
 
     sdata = :crypto.exor(bin, :binary.part(key, 0, byte_size(bin)))
 
-    IO.inspect {__MODULE__, :udp_data, host, port, sdata}
+    #IO.inspect {__MODULE__, :udp_data, host, port, sdata}
 
     state =
       case sdata do

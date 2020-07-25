@@ -89,9 +89,9 @@ defmodule ClientSess do
       {_, %{conn_id: conn_id}} ->
         IO.inspect({:sending_tcp_data, conn_id, byte_size(data)})
 
-        UdpChannel.queue(
+        UdpChannel.queue_data(
           state.udpchannel,
-          ServerSess.encode_cmd({:con_data, conn_id, offset, data})
+          {:con_data, conn_id, offset, data}
         )
 
       _ ->
@@ -114,7 +114,7 @@ defmodule ClientSess do
         conn_id: conn_id
       })
 
-    UdpChannel.queue(
+    UdpChannel.queue_app(
       state.udpchannel,
       ServerSess.encode_cmd({:add_con, conn_id, dest_host, dest_port})
     )
@@ -131,7 +131,7 @@ defmodule ClientSess do
         IO.inspect({:tcp_closed, conn_id})
 
         sent_bytes = 0
-        UdpChannel.queue(state.udpchannel, ServerSess.encode_cmd({:rm_con, conn_id, sent_bytes}))
+        UdpChannel.queue_app(state.udpchannel, ServerSess.encode_cmd({:rm_con, conn_id, sent_bytes}))
 
         tcp_procs = Map.delete(state.tcp_procs, Conn_id)
         state = %{state | tcp_procs: tcp_procs}
