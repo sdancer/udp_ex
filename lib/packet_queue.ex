@@ -40,7 +40,7 @@ defmodule PacketQueue do
 
   def insert_appdata(send_queue, {send_counter, data}) do
 
-    :ets.insert(send_queue, {send_counter, {conn_id, data}})
+    :ets.insert(send_queue, {send_counter, {0, data}})
 
     send_counter + 1
   end
