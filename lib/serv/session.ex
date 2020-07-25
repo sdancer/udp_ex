@@ -220,7 +220,8 @@ defmodule ServerSess do
 
         state
 
-      {:rm_con, conn_id} ->
+        #FIXME: add offset
+      {:rm_con, conn_id, _offset} ->
         # kill a connection
         remove_conn(conn_id, state)
     end
