@@ -141,7 +141,7 @@ defmodule ServerSess do
 
           state
 
-        {:udp_data, data} ->
+        {:udp_channel_data, data} ->
           state = %{state | last_packet: :os.system_time(1000)}
           process_udp_data(data, state)
 
