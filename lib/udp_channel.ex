@@ -88,7 +88,7 @@ defmodule UdpChannel do
   def receive_loop(socket, state) do
     receive do
       {:queue_app, data} ->
-        IO.inspect({:queueing_data, data})
+        #IO.inspect({:queueing_app_data, data})
 
         send_counter =
           PacketQueue.insert_appdata(state.send_queue, {state.send_counter, data})
@@ -97,7 +97,7 @@ defmodule UdpChannel do
         receive_loop(socket, state)
 
       {:queue_data, {:con_data, conn_id, offset, send_bytes}} ->
-        IO.inspect({:queueing_data, {:con_data, conn_id, offset, send_bytes}})
+        #IO.inspect({:queueing_data, {:con_data, conn_id, offset, send_bytes}})
 
         send_counter =
           PacketQueue.insert_chunks(state.send_queue, {state.send_counter, {conn_id, offset, send_bytes}})
