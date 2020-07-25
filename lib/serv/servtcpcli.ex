@@ -9,8 +9,8 @@ defmodule ServTcpCli do
     }
   end
 
-  def start({remotehost, remoteport}, conn_id, session) do
-    GenServer.start(__MODULE__, %{
+  def start_link({remotehost, remoteport}, conn_id, session) do
+    GenServer.start_link(__MODULE__, %{
       remotehost: remotehost,
       remoteport: remoteport,
       conn_id: conn_id,
