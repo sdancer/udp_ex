@@ -127,7 +127,7 @@ defmodule UdpChannel do
 
     sdata = :crypto.exor(bin, :binary.part(key, 0, byte_size(bin)))
 
-    IO.puts {__MODULE__, :udp_data, host, port, sdata}
+    IO.inspect {__MODULE__, :udp_data, host, port, sdata}
 
     state =
       case sdata do
@@ -159,6 +159,8 @@ defmodule UdpChannel do
         <<^session_id::64-little, 0, packet_id::64-little, data::binary>> ->
           pbuckets = state.buckets
           {is_new, nbuckets} = Sparse.add_to_sparse([], state.buckets, packet_id)
+
+          IO.inspect {:packet_data, is_new, packet_id, data}
 
           case is_new do
             :ok ->
