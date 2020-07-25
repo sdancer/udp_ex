@@ -127,6 +127,8 @@ defmodule UdpChannel do
 
     sdata = :crypto.exor(bin, :binary.part(key, 0, byte_size(bin)))
 
+    IO.puts {__MODULE__, :udp_data, host, port, sdata}
+
     state =
       case sdata do
         # types of packets:
