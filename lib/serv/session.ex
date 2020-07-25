@@ -134,7 +134,7 @@ defmodule ServerSess do
 
         {:tcp_closed, conn_id, offset} ->
           # notify the other side
-          IO.inspect({__MODULE__, :conn_closed, conn_id})
+          #IO.inspect({__MODULE__, :conn_closed, conn_id})
           state = remove_conn(conn_id, state)
 
           UdpChannel.queue_app(state.channel, encode_cmd({:rm_con, conn_id, offset}))
@@ -191,7 +191,7 @@ defmodule ServerSess do
     # IO.inspect {:udp_data, Process.get {:series, :udp_data}}
 
     decoded = decode_cmd(data)
-    IO.inspect {__MODULE__, :proccess_udp, decoded}
+    #IO.inspect {__MODULE__, :proccess_udp, decoded}
     case decoded do
       {:add_con, conn_id, dest_host, dest_port} ->
         # launch a connection
@@ -206,7 +206,7 @@ defmodule ServerSess do
         %{state | procs: procs}
 
       {:con_data, conn_id, offset, sent_bytes} ->
-        IO.inspect {__MODULE__, :con_data, conn_id, offset, byte_size(sent_bytes)}
+        #IO.inspect {__MODULE__, :con_data, conn_id, offset, byte_size(sent_bytes)}
         # send bytes to the tcp conn
         proc = Map.get(state.procs, conn_id, nil)
 
