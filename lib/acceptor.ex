@@ -2,7 +2,7 @@ defmodule Mitme.Acceptor do
   use GenServer
 
   def start_link(%{port: port} = args) do
-    GenServer.start(__MODULE__, args, [])
+    GenServer.start_link(__MODULE__, args, [])
   end
 
   def init(%{port: port, module: module} = args) do

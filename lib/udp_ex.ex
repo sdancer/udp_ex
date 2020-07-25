@@ -32,8 +32,17 @@ defmodule UdpEx do
 
         remotehost = "95.217.38.33"
 
-        ClientSess.start_link(%{remotehost: remotehost})
+        children = [
+          {DynamicSupervisor, strategy: :one_for_one, name: MyApp.DynamicSupervisor},
+          %{
+            id: ClientSess,
+            start: {ClientSess, :start_link, [%{remotehost: remotehost}]}
+          },
+        ]
 
+        Supervisor.start_link(children, strategy: :one_for_one)
+
+        
       true ->
         UdpEx.Supervisor.start_link([])
     end

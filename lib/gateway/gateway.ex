@@ -129,10 +129,10 @@ defmodule GatewayClient do
       <<"newsession#", byte_size(key)::32-little, key::binary, session_id::64-little>>
     )
 
-    res = :ssl.recv(socket, 0)
-    IO.inspect(res)
+    {:ok, res = <<"ok#", port_num::32-little>>} = :ssl.recv(socket, 0)
+    IO.inspect(port_num)
     :ssl.close(socket)
 
-    res
+    {:ok, port_num}
   end
 end

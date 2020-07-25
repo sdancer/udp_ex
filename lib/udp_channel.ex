@@ -280,17 +280,17 @@ defmodule UdpChannel do
     # pps ?
     if :os.system_time(1000) - Process.get(:print_dispatch, 0) > 1000 do
       Process.put(:print_dispatch, :os.system_time(1000))
-      IO.inspect({state.last_send, state.send_counter})
+      #IO.inspect({state.last_send, state.send_counter})
     end
 
     #    IO.inspect({:dispatch_packets, state.last_send, state.send_counter})
-
+     
     last_reset = Map.get(state, :last_reset, {0, 0, 0})
     now = :erlang.timestamp()
 
     state =
       if state.last_send == :"$end_of_table" and :timer.now_diff(now, last_reset) > 250_000 do
-        IO.inspect({__MODULE__, :reset, :ets.first(state.send_queue)})
+        #IO.inspect({__MODULE__, :reset, :ets.first(state.send_queue)})
         %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
       else
         state

@@ -7,7 +7,7 @@ defmodule CliConn do
 
   def init(params) do
     packet_queue = :ets.new(:packet_queue, [:public, :ordered_set])
-    state = Map.merge(params, %{packet_queue: packet_queue})
+    state = Map.merge(params, %{packet_queue: packet_queue, offset: 0})
     {:ok, state}
   end
 
