@@ -1,4 +1,14 @@
 defmodule ServTcpCli do
+  def child_spec(opts) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, opts},
+      type: :worker,
+      restart: :temporary,
+      shutdown: 500
+    }
+  end
+
   def start({remotehost, remoteport}, conn_id, session) do
     GenServer.start(__MODULE__, %{
       remotehost: remotehost,

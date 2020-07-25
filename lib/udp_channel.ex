@@ -160,7 +160,7 @@ defmodule UdpChannel do
           pbuckets = state.buckets
           {is_new, nbuckets} = Sparse.add_to_sparse([], state.buckets, packet_id)
 
-          IO.inspect {:packet_data, is_new, packet_id, data}
+          #IO.inspect {:packet_data, is_new, packet_id, data}
 
           case is_new do
             :ok ->

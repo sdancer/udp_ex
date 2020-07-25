@@ -190,10 +190,17 @@ defmodule ServerSess do
     Process.put({:series, :udp_data}, Process.get({:series, :udp_data}, 0) + 1)
     # IO.inspect {:udp_data, Process.get {:series, :udp_data}}
 
-    case decode_cmd(data) do
+    decoded = decode_cmd(data)
+    IO.inspect {__MODULE__, :proccess_udp, decoded}
+    case decoded do
       {:add_con, conn_id, dest_host, dest_port} ->
         # launch a connection
-        {:ok, pid} = ServTcpCli.start({dest_host, dest_port}, conn_id, self())
+        {:ok, pid} =
+          DynamicSupervisor.start_child(
+            MyApp.DynamicSupervisor,
+            {ServTcpCli, [{dest_host, dest_port}, conn_id, self()]}
+          )
+
         ref = :erlang.monitor(:process, pid)
         procs = Map.put(state.procs, conn_id, %{proc: pid, conn_id: conn_id})
         %{state | procs: procs}
