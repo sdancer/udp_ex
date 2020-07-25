@@ -183,7 +183,7 @@ defmodule UdpChannel do
               Process.put(:news, newpackets + 1)
 
               send(state.parent, {:udp_channel_data, data})
-              IO.inspect({:data_sent_to_parent, data})
+              #IO.inspect({:data_sent_to_parent, data})
 
             _ ->
               if pbuckets != nbuckets do
