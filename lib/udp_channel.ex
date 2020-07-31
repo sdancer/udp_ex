@@ -166,8 +166,7 @@ defmodule UdpChannel do
             PacketQueue.delete_entries(state.send_queue, send + 1, start)
           end)
 
-          # IO.inspect {:got_buckets, buckets}
-          IO.inspect({:buckets_data, buckets})
+          IO.inspect {:got_buckets, Enum.count(buckets)}
           %{state | remote_udp_endpoint: {host, port}}
 
         <<^session_id::64-little, 0, packet_id::64-little, data::binary>> ->
@@ -253,7 +252,7 @@ defmodule UdpChannel do
       b = Enum.slice(Enum.shuffle(state.buckets), 0, 50)
 
       if b != [] do
-        IO.inspect({"sending buckets", b})
+        IO.inspect({"sending buckets", Enum.count(b)})
 
         buckets_data =
           Enum.reduce(b, "", fn {send, start}, acc ->

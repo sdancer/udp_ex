@@ -28,7 +28,7 @@ defmodule UdpEx do
       !!:os.getenv('CLIENT') ->
         IO.inspect("initializing client")
 
-        remotehost = "35.221.206.207"
+        #remotehost = "35.221.206.207"
 
         remotehost = "95.217.38.33"
 
