@@ -17,36 +17,38 @@ defmodule UdpChannel do
     {:ok, proc, socket, send_queue}
   end
 
-  def stats_inc_udp_packets(state), do: :counters.add state.stat_counters, 1, 1 
-  def stats_inc_new_packets(state), do: :counters.add state.stat_counters, 2, 1 
-  def stats_inc_dup_packets(state), do: :counters.add state.stat_counters, 3, 1 
-  def stats_inc_ticks(state), do: :counters.add state.stat_counters, 4, 1 
+  def stats_inc_udp_packets(state), do: :counters.add(state.stat_counters, 1, 1)
+  def stats_inc_new_packets(state), do: :counters.add(state.stat_counters, 2, 1)
+  def stats_inc_dup_packets(state), do: :counters.add(state.stat_counters, 3, 1)
+  def stats_inc_ticks(state), do: :counters.add(state.stat_counters, 4, 1)
+
   def stats5(state) do
     seconds = 1
+
     if :os.system_time(1000) - Process.get(:prev_stats, 0) > 1000 do
-    Process.put :prev_stats, :os.system_time(1000)
-    newpackets = :counters.get state.stat_counters, 2
-    dups = :counters.get state.stat_counters, 3 
-    ticks = :counters.get state.stat_counters, 4 
-    :counters.put state.stat_counters, 4, 0
-    {_packets, oldnew, olddups} = Process.get(:old_stats, {0, 0, 0})
+      Process.put(:prev_stats, :os.system_time(1000))
+      newpackets = :counters.get(state.stat_counters, 2)
+      dups = :counters.get(state.stat_counters, 3)
+      ticks = :counters.get(state.stat_counters, 4)
+      :counters.put(state.stat_counters, 4, 0)
+      {_packets, oldnew, olddups} = Process.get(:old_stats, {0, 0, 0})
 
-    IO.inspect(
-      {:stats5, [
-       ticks: ticks / seconds,
-       new: (newpackets - oldnew) / seconds,
-       dup: (dups - olddups) / seconds,
-       ]}
-    )
+      IO.inspect(
+        {:stats5,
+         [
+           ticks: ticks / seconds,
+           new: (newpackets - oldnew) / seconds,
+           dup: (dups - olddups) / seconds
+         ]}
+      )
 
-    Process.put(:old_stats, {0, newpackets, dups})
+      Process.put(:old_stats, {0, newpackets, dups})
     end
-
-
   end
- 
+
   def new_state(socket, session_id, remote_udp_point) do
-    stat_counters = :counters.new 10, [:write_concurrency]
+    stat_counters = :counters.new(10, [:write_concurrency])
+
     %{
       stat_counters: stat_counters,
       session_id: session_id,
@@ -88,7 +90,7 @@ defmodule UdpChannel do
   end
 
   def queue_data(chan, data) do
-     send(chan, {:queue_data, data})
+    send(chan, {:queue_data, data})
   end
 
   def start_loop(state) do
@@ -108,14 +110,13 @@ defmodule UdpChannel do
   end
 
   def loop(state) do
-
     stats_inc_ticks(state)
-    
+
     stats5(state)
 
     state = receive_loop(state.udpsocket, state)
 
-    #500 ticks per second
+    # 500 ticks per second
     state = dispatch_packets(state.remote_udp_endpoint, state)
     state = dispatch_packets(state.remote_udp_endpoint, state)
 
@@ -125,26 +126,27 @@ defmodule UdpChannel do
   def receive_loop(socket, state) do
     receive do
       {:queue_app, data} ->
-        #IO.inspect({:queueing_app_data, data})
+        # IO.inspect({:queueing_app_data, data})
 
-        send_counter =
-          PacketQueue.insert_appdata(state.send_queue, {state.send_counter, data})
+        send_counter = PacketQueue.insert_appdata(state.send_queue, {state.send_counter, data})
 
         state = %{state | send_counter: send_counter}
         receive_loop(socket, state)
 
       {:queue_data, {:con_data, conn_id, offset, send_bytes}} ->
-        #IO.inspect({:queueing_data, {:con_data, conn_id, offset, send_bytes}})
+        # IO.inspect({:queueing_data, {:con_data, conn_id, offset, send_bytes}})
 
         send_counter =
-          PacketQueue.insert_chunks(state.send_queue, {state.send_counter, {conn_id, offset, send_bytes}})
+          PacketQueue.insert_chunks(
+            state.send_queue,
+            {state.send_counter, {conn_id, offset, send_bytes}}
+          )
 
         state = %{state | send_counter: send_counter}
         receive_loop(socket, state)
 
-
       {:udp, socket, host, port, bin} ->
-        stats_inc_udp_packets(state) 
+        stats_inc_udp_packets(state)
         # IO.inspect {"received", session_id, host, port, bin}
         {:noreply, state} = handle_info({:udp_data, host, port, bin}, state)
         receive_loop(socket, state)
@@ -172,6 +174,16 @@ defmodule UdpChannel do
     """
   end
 
+  def proc_ack_list(<<>>, state) do
+    nil
+  end
+
+  def proc_ack_list(<<seq_id::64-little, rest::binary>>, state) do
+    :ets.delete(state.send_queue, seq_id)
+
+    proc_ack_list(rest, state)
+  end
+
   def handle_info({:udp_data, host, port, bin}, state) do
     session_id = state.session_id
 
@@ -179,13 +191,21 @@ defmodule UdpChannel do
 
     sdata = :crypto.exor(bin, :binary.part(key, 0, byte_size(bin)))
 
-    #IO.inspect {__MODULE__, :udp_data, host, port, sdata}
+    # IO.inspect {__MODULE__, :udp_data, host, port, sdata}
 
     state =
       case sdata do
         # types of packets:
-        # bucket list
-        # data
+        # 100 acks list
+        # 99 bucket list
+        # 0 data
+        <<^session_id::64-little, 100, _ackmin::64-little, buckets_count::32-little,
+          rest::binary>> ->
+          proc_ack_list(rest, state)
+
+          # IO.inspect {:got_buckets, Enum.count(buckets)}
+          %{state | remote_udp_endpoint: {host, port}}
+
         <<^session_id::64-little, 99, _ackmin::64-little, buckets_count::32-little, rest::binary>> ->
           buckets =
             if rest == "" do
@@ -204,21 +224,23 @@ defmodule UdpChannel do
             PacketQueue.delete_entries(state.send_queue, send + 1, start)
           end)
 
-          IO.inspect {:got_buckets, Enum.count(buckets)}
+          # IO.inspect {:got_buckets, Enum.count(buckets)}
           %{state | remote_udp_endpoint: {host, port}}
 
         <<^session_id::64-little, 0, packet_id::64-little, data::binary>> ->
           pbuckets = state.buckets
           {is_new, nbuckets} = Sparse.add_to_sparse([], state.buckets, packet_id)
 
-          #IO.inspect {:packet_data, is_new, packet_id, data}
+          # IO.inspect {:packet_data, is_new, packet_id, data}
+
+          send_acks(packet_id, state)
 
           case is_new do
             :ok ->
               # ack_data state, packet_id
-              
+
               send(state.parent, {:udp_channel_data, data})
-              #IO.inspect({:data_sent_to_parent, data})
+              # IO.inspect({:data_sent_to_parent, data})
 
               stats_inc_new_packets(state)
 
@@ -226,8 +248,8 @@ defmodule UdpChannel do
               if pbuckets != nbuckets do
                 IO.inspect({:error, pbuckets, nbuckets})
               end
-	      stats_inc_dup_packets(state)
 
+              stats_inc_dup_packets(state)
           end
 
           state = Map.put(state, :buckets, nbuckets)
@@ -265,7 +287,7 @@ defmodule UdpChannel do
               state
             end
 
-          state = send_buckets(state)
+          # state = send_buckets(state)
 
           %{state | remote_udp_endpoint: {host, port}}
 
@@ -275,6 +297,54 @@ defmodule UdpChannel do
       end
 
     {:noreply, state}
+  end
+
+  def send_acks(seq_id, state = %{remote_udp_endpoint: nil}) do
+    ack_list = Process.get(:ack_list, <<>>)
+
+    ack_list =
+      if byte_size(ack_list) > 8 * 13 do
+        :binary.part(ack_list, 0, 13 * 8)
+      else
+        ack_list
+      end
+
+    ack_list = <<seq_id::64-little>> <> ack_list
+    ack_list = Process.put(:ack_list, ack_list)
+
+    acks_time = :os.system_time(1000) - Process.get(:acks_time, 0)
+
+    acks_not_sent = Process.get(:acks_not_sent, 0)
+
+    acks_not_sent =
+      if acks_not_sent >= 9 or acks_time > 100 do
+        Process.put(:acks_time, :os.system_time(1000))
+        {host, port} = state.remote_udp_endpoint
+
+        # IO.inspect({"sending buckets", Enum.count(b)})
+
+        data =
+          <<state.session_id::64-little, 100, 0::64-little, count::32-little,
+            buckets_data::binary>>
+
+        key = get_key()
+
+        sdata = :crypto.exor(data, :binary.part(key, 0, byte_size(data)))
+
+        :ok =
+          :gen_udp.send(
+            state.udpsocket,
+            host,
+            port,
+            sdata
+          )
+
+        0
+      else
+        acks_not_sent + 1
+      end
+
+    Process.put(:acks_not_sent, acks_not_sent)
   end
 
   def send_buckets(state = %{remote_udp_endpoint: nil}) do
@@ -289,7 +359,7 @@ defmodule UdpChannel do
       b = Enum.slice(Enum.shuffle(state.buckets), 0, 50)
 
       if b != [] do
-        IO.inspect({"sending buckets", Enum.count(b)})
+        # IO.inspect({"sending buckets", Enum.count(b)})
 
         buckets_data =
           Enum.reduce(b, "", fn {send, start}, acc ->
@@ -334,20 +404,22 @@ defmodule UdpChannel do
     # pps ?
     if :os.system_time(1000) - Process.get(:print_dispatch, 0) > 1000 do
       Process.put(:print_dispatch, :os.system_time(1000))
-      #IO.inspect({state.last_send, state.send_counter})
+      # IO.inspect({state.last_send, state.send_counter})
     end
 
     #    IO.inspect({:dispatch_packets, state.last_send, state.send_counter})
-     
+
     last_reset = Map.get(state, :last_reset, {0, 0, 0})
     now = :erlang.timestamp()
 
-    state = cond do
-     :timer.now_diff(now, last_reset) < 200_000 -> 
-        state
-      true -> 
-        #IO.inspect({__MODULE__, :reset, :ets.first(state.send_queue)})
-        %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
+    state =
+      cond do
+        :timer.now_diff(now, last_reset) < 200_000 ->
+          state
+
+        true ->
+          # IO.inspect({__MODULE__, :reset, :ets.first(state.send_queue)})
+          %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
       end
 
     if state.last_send < state.send_counter do
@@ -387,7 +459,7 @@ defmodule UdpChannel do
     key = Process.get(:key)
 
     if key == nil do
-      k = :binary.copy <<151, 93, 29, 133, 47, 79, 63>>, 1024
+      k = :binary.copy(<<151, 93, 29, 133, 47, 79, 63>>, 1024)
 
       Process.put(:key, k)
       k
