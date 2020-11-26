@@ -170,6 +170,8 @@ defmodule ServerSess do
 
       {:rm_con, conn_id, offset} ->
         <<3, conn_id::32-little, offset::64-little>>
+      _ ->
+	IO.inspect {:encode_cmd_error, data}
     end
   end
 
@@ -183,6 +185,8 @@ defmodule ServerSess do
 
       <<3, conn_id::32-little, offset::64-little>> ->
         {:rm_con, conn_id, offset}
+      _ ->
+	IO.inspect {:decode_cmd_error, data}
     end
   end
 

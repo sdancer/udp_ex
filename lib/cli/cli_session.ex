@@ -110,14 +110,13 @@ defmodule ClientSess do
     {:noreply, state}
   end
 
-  def handle_info({:tcp_closed, proc}, state) do
+  def handle_info({:tcp_closed, proc, sent_bytes}, state) do
     s = Enum.find(state.tcp_procs, fn {_, aconn} -> aconn.proc == proc end)
 
     case s do
       {_, %{conn_id: conn_id}} ->
         IO.inspect({:tcp_closed, conn_id})
 
-        sent_bytes = 0
         UdpChannel.queue_app(state.udpchannel, ServerSess.encode_cmd({:rm_con, conn_id, sent_bytes}))
 
         tcp_procs = Map.delete(state.tcp_procs, Conn_id)

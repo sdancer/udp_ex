@@ -97,7 +97,7 @@ defmodule CliConn do
   end
 
   def handle_info({:tcp_closed, socket}, state) do
-    send(state.session, {:tcp_closed, self()})
+    send(state.session, {:tcp_closed, self(), Map.get(state, :offset, 0)})
 
     {:stop, :normal, nil}
   end
