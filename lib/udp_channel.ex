@@ -20,6 +20,7 @@ defmodule UdpChannel do
   def stats_inc_udp_packets(state), do: :counters.add state.stat_counters, 1, 1 
   def stats_inc_new_packets(state), do: :counters.add state.stat_counters, 2, 1 
   def stats_inc_dup_packets(state), do: :counters.add state.stat_counters, 3, 1 
+  def stats_inc_ticks(state), do: :counters.add state.stat_counters, 4, 1 
   def stats5(state) do
     if :os.system_time(1000) - Process.get(:prev_stats, 0) > 1000 do
     Process.put :prev_stats, :os.system_time(1000)
@@ -29,8 +30,9 @@ defmodule UdpChannel do
 
     IO.inspect(
       {:stats5, [
+       ticks: ticks / 5,
        new: (newpackets - oldnew) / 5,
-       dup: (dups - olddups) / 5
+       dup: (dups - olddups) / 5,
        ]}
     )
 
@@ -104,7 +106,8 @@ defmodule UdpChannel do
 
   def loop(state) do
 
-
+    stats_inc_ticks(state)
+    
     stats5(state)
 
     state = receive_loop(state.udpsocket, state)
