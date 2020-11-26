@@ -39,7 +39,7 @@ defmodule ServTcpCli do
     result =
       :gen_tcp.connect(:binary.bin_to_list(state.remotehost), state.remoteport, [
         {:active, :once},
-        :binary
+        :binary,
       ])
 
     case result do

@@ -21,6 +21,10 @@ defmodule UdpChannel do
   def stats_inc_new_packets(state), do: :counters.add(state.stat_counters, 2, 1)
   def stats_inc_dup_packets(state), do: :counters.add(state.stat_counters, 3, 1)
   def stats_inc_ticks(state), do: :counters.add(state.stat_counters, 4, 1)
+  def stats_inc_sent_acks(state), do: :counters.add(state.stat_counters, 5, 1)
+
+  def stats_inc_recv_acks(state), do: :counters.add(state.stat_counters, 6, 1)
+
 
   def stats5(state) do
     seconds = 1
@@ -29,16 +33,30 @@ defmodule UdpChannel do
       Process.put(:prev_stats, :os.system_time(1000))
       newpackets = :counters.get(state.stat_counters, 2)
       dups = :counters.get(state.stat_counters, 3)
+
+      {_packets, oldnew, olddups} = Process.get(:old_stats, {0, 0, 0})
+
       ticks = :counters.get(state.stat_counters, 4)
       :counters.put(state.stat_counters, 4, 0)
-      {_packets, oldnew, olddups} = Process.get(:old_stats, {0, 0, 0})
+
+      sent_acks = :counters.get(state.stat_counters, 5)
+      :counters.put(state.stat_counters, 5, 0)
+
+      recv_acks = :counters.get(state.stat_counters, 6)
+      :counters.put(state.stat_counters, 6, 0)
+
+
+      {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+
 
       IO.inspect(
         {:stats5,
          [
+	   queue: pressure,
            ticks: ticks / seconds,
            new: (newpackets - oldnew) / seconds,
-           dup: (dups - olddups) / seconds
+           dup: (dups - olddups) / seconds,
+	   acks: { recv_acks, sent_acks},
          ]}
       )
 
@@ -201,6 +219,7 @@ defmodule UdpChannel do
         # 0 data
         <<^session_id::64-little, 100, _ackmin::64-little, buckets_count::32-little,
           rest::binary>> ->
+          stats_inc_recv_acks(state)
           proc_ack_list(rest, state)
 
           # IO.inspect {:got_buckets, Enum.count(buckets)}
@@ -343,6 +362,8 @@ defmodule UdpChannel do
             sdata
           )
 
+        stats_inc_sent_acks(state)
+
         0
       else
         acks_not_sent + 1
@@ -406,19 +427,13 @@ defmodule UdpChannel do
     # do we have packets to send?
     # last ping?
     # pps ?
-    if :os.system_time(1000) - Process.get(:print_dispatch, 0) > 1000 do
-      Process.put(:print_dispatch, :os.system_time(1000))
-      # IO.inspect({state.last_send, state.send_counter})
-    end
-
-    #    IO.inspect({:dispatch_packets, state.last_send, state.send_counter})
 
     last_reset = Map.get(state, :last_reset, {0, 0, 0})
     now = :erlang.timestamp()
 
     state =
       cond do
-        :timer.now_diff(now, last_reset) < 200_000 ->
+        :timer.now_diff(now, last_reset) < 300_000 ->
           state
 
         true ->
