@@ -6,7 +6,7 @@ defmodule CliConn do
   end
 
   def init(params) do
-    packet_queue = :ets.new(:packet_queue, [:public, :ordered_set])
+    packet_queue = :ets.new(:packet_queue, [:public, :ordered_setose)
     state = Map.merge(params, %{packet_queue: packet_queue, offset: 0})
     {:ok, state}
   end
@@ -46,12 +46,12 @@ defmodule CliConn do
 
   def handle_info({:close_conn, offset}, state = %{sent: sent}) do
     if state.sent >= offset do
-      IO.inspect({__MODULE__, :close_conn, sent})
+      IO.inspect({__MODULE__, :close_conn, [sent: sent, received: state.offset]})
       :gen_tcp.close(state.socket)
       send(state.session, {:tcp_closed, self(), offset})
       {:stop, :normal, state}
     else
-      IO.inspect({__MODULE__, :ignoring_close, offset, sent})
+      IO.inspect({__MODULE__, :ignoring_close, [sent: sent, received: state.offset]})
       state = Map.put(state, :close_at, offset)
       {:noreply, state}
     end
