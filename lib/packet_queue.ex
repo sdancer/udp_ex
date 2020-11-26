@@ -46,14 +46,20 @@ defmodule PacketQueue do
           :ets.insert(send_queue, {send_counter, {conn_id, data}})
 
           insert_chunks(send_queue, {send_counter + 1, {conn_id, offset + channel_size, rest}})
-        _ ->
-	  conns_small_buffer = Process.get :conns_small_buffer, %{}
+        d ->
+	  #conns_small_buffer = Process.get :conns_small_buffer, %{}
 	 
-	  conns_small_buffer = Map.put conns_small_buffer, conn_id, {offset, d}
+	  #conns_small_buffer = Map.put conns_small_buffer, conn_id, {offset, d}
 
-          Process.put :conns_small_buffer, conns_small_buffer 
+          #Process.put :conns_small_buffer, conns_small_buffer 
 
-	  send_counter
+	  #send_counter
+
+          data = ServerSess.encode_cmd({:con_data, conn_id, offset, d})
+
+          :ets.insert(send_queue, {send_counter, {conn_id, data}})
+
+          insert_chunks(send_queue, {send_counter + 1, {conn_id, offset + channel_size, ""}})
 
     end
   end
