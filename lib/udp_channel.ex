@@ -26,6 +26,8 @@ defmodule UdpChannel do
     Process.put :prev_stats, :os.system_time(1000)
     newpackets = :counters.get state.stat_counters, 2
     dups = :counters.get state.stat_counters, 3 
+    ticks = :counters.get state.stat_counters, 4 
+    :counters.put state.stat_counters, 4, 0
     {_packets, oldnew, olddups} = Process.get(:old_stats, {0, 0, 0})
 
     IO.inspect(
