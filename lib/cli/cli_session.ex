@@ -115,7 +115,7 @@ defmodule ClientSess do
 
     case s do
       {_, %{conn_id: conn_id}} ->
-        IO.inspect({:tcp_closed, conn_id})
+        IO.inspect({:tcp_closed, conn_id, sent_bytes})
 
         UdpChannel.queue_app(state.udpchannel, ServerSess.encode_cmd({:rm_con, conn_id, sent_bytes}))
 

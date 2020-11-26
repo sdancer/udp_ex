@@ -228,7 +228,7 @@ defmodule ServerSess do
       {:rm_con, conn_id, offset} ->
         IO.inspect "received remove conn #{conn_id} #{offset}"
         # kill a connection
-        remove_conn(conn_id, state)
+        remove_conn(conn_id, offset, state)
     end
   end
 
@@ -237,10 +237,11 @@ defmodule ServerSess do
 
     case proc do
       %{proc: proc} ->
-        Process.exit(proc, :normal)
+        send proc, {:close_conn, offset} 
+	#should add a timer to kill it in 30 sec or so
 
       _ ->
-        nil
+        IO.inspect "close conn #{conn_id} not found"
     end
 
     procs = Map.delete(state.procs, conn_id)
