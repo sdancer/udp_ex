@@ -60,25 +60,12 @@ defmodule ClientSess do
     #  <<curtime::64-little>>
     # )
 
-    print_stats(state)
+    #print_stats(state)
 
     {:noreply, state}
   end
 
-  def print_stats(state) do
-    newpackets = Process.get(:news, 0)
-    dups = Process.get(:dups, 0)
-    {oldnew, olddups} = Process.get(:old_stats, {0, 0})
-
-    IO.inspect(
-      {:stats5, :os.system_time(1000) - state.lastpong, (newpackets - oldnew) / 5,
-       (dups - olddups) / 5}
-    )
-
-    Process.put(:old_stats, {newpackets, dups})
-  end
-
-  def handle_info({:ssl_closed, _}, state) do
+   def handle_info({:ssl_closed, _}, state) do
     {:noreply, state}
   end
 

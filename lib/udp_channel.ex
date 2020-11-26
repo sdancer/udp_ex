@@ -17,8 +17,33 @@ defmodule UdpChannel do
     {:ok, proc, socket, send_queue}
   end
 
+  def stats_inc_udp_packets(state), do: :counters.add state.stat_counters, 1, 1 
+  def stats_inc_new_packets(state), do: :counters.add state.stat_counters, 2, 1 
+  def stats_inc_dup_packets(state), do: :counters.add state.stat_counters, 3, 1 
+  def stats5(state) do
+    if :os.system_time(1000) - Process.get(:prev_stats, 0) > 1000 do
+    Process.put :prev_stats, :os.system_time(1000)
+    newpackets = :counters.get state.stat_counters, 2
+    dups = :counters.get state.stat_counters, 3 
+    {_packets, oldnew, olddups} = Process.get(:old_stats, {0, 0, 0})
+
+    IO.inspect(
+      {:stats5, [
+       new: (newpackets - oldnew) / 5,
+       dup: (dups - olddups) / 5
+       ]}
+    )
+
+    Process.put(:old_stats, {0, newpackets, dups})
+    end
+
+
+  end
+ 
   def new_state(socket, session_id, remote_udp_point) do
+    stat_counters = :counters.new 10, [:write_concurrency]
     %{
+      stat_counters: stat_counters,
       session_id: session_id,
       remote_udp_endpoint: remote_udp_point,
       udpsocket: socket,
@@ -78,6 +103,10 @@ defmodule UdpChannel do
   end
 
   def loop(state) do
+
+
+    stats5(state)
+
     state = receive_loop(state.udpsocket, state)
 
     #500 ticks per second
@@ -109,6 +138,7 @@ defmodule UdpChannel do
 
 
       {:udp, socket, host, port, bin} ->
+        stats_inc_udp_packets(state) 
         # IO.inspect {"received", session_id, host, port, bin}
         {:noreply, state} = handle_info({:udp_data, host, port, bin}, state)
         receive_loop(socket, state)
@@ -180,19 +210,18 @@ defmodule UdpChannel do
           case is_new do
             :ok ->
               # ack_data state, packet_id
-              newpackets = Process.get(:news, 0)
-              Process.put(:news, newpackets + 1)
-
+              
               send(state.parent, {:udp_channel_data, data})
               #IO.inspect({:data_sent_to_parent, data})
+
+              stats_inc_new_packets(state)
 
             _ ->
               if pbuckets != nbuckets do
                 IO.inspect({:error, pbuckets, nbuckets})
               end
+	      stats_inc_dup_packets(state)
 
-              dups = Process.get(:dups, 0)
-              Process.put(:dups, dups + 1)
           end
 
           state = Map.put(state, :buckets, nbuckets)
@@ -352,10 +381,7 @@ defmodule UdpChannel do
     key = Process.get(:key)
 
     if key == nil do
-      k =
-        Enum.reduce(1..256, "", fn x, acc ->
-          acc <> <<x, 151, 93, 29, 133, 47, 79, 63>>
-        end)
+      k = :binary.copy <<151, 93, 29, 133, 47, 79, 63>>, 1024
 
       Process.put(:key, k)
       k
