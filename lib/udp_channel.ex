@@ -324,8 +324,8 @@ defmodule UdpChannel do
         # IO.inspect({"sending buckets", Enum.count(b)})
 
         data =
-          <<state.session_id::64-little, 100, 0::64-little, count::32-little,
-            buckets_data::binary>>
+          <<state.session_id::64-little, 100, 0::64-little, 0::32-little,
+            ack_list::binary>>
 
         key = get_key()
 
