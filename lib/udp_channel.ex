@@ -136,6 +136,9 @@ defmodule UdpChannel do
     # 500 ticks per second
     state = dispatch_packets(state.remote_udp_endpoint, state)
     state = dispatch_packets(state.remote_udp_endpoint, state)
+    state = dispatch_packets(state.remote_udp_endpoint, state)
+    state = dispatch_packets(state.remote_udp_endpoint, state)
+
 
     __MODULE__.loop(state)
   end
@@ -153,14 +156,17 @@ defmodule UdpChannel do
       {:queue_data, {:con_data, conn_id, offset, send_bytes}} ->
         # IO.inspect({:queueing_data, {:con_data, conn_id, offset, send_bytes}})
 	conns_small_buffer = Process.get :conns_small_buffer, %{}
+
         {offset, send_bytes} = case (Map.get conns_small_buffer, conn_id, nil ) do
 	   nil ->
 	     {offset, send_bytes}
-           {offset, d}  -> 
-	     {offset, d <> send_bytes}
+           {prev_offset, d}  -> 
+	     {prev_offset, d <> send_bytes}
 	end
-     
  
+        conns_sb = Map.delete conns_small_buffer, conn_id 
+	Process.put :conns_small_buffer, conns_sb
+
         send_counter =
           PacketQueue.insert_chunks(
             state.send_queue,
