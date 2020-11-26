@@ -314,7 +314,7 @@ defmodule UdpChannel do
       end
 
     ack_list = <<seq_id::64-little>> <> ack_list
-    ack_list = Process.put(:ack_list, ack_list)
+    Process.put(:ack_list, ack_list)
 
     acks_time = :os.system_time(1000) - Process.get(:acks_time, 0)
 
