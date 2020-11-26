@@ -67,7 +67,7 @@ defmodule ServerSess do
     end
 
     state =
-      if pressure <= 1000 do
+      if pressure <= 5000 do
         case state.reading_queue do
           [] ->
             state
@@ -113,7 +113,7 @@ defmodule ServerSess do
           {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
 
           reading_queue =
-            if pressure > 1000 do
+            if pressure > 5000 do
               state.reading_queue ++ [proc]
             else
               send(proc, :continue_reading)

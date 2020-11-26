@@ -16,30 +16,26 @@ defmodule PacketQueue do
     send_counter
   end
 
-  def insert_chunks(
-        send_queue,
-        {send_counter, {conn_id, offset, <<d::binary-size(800), rest::binary>>}}
-      ) do
-    data = ServerSess.encode_cmd {:con_data, conn_id, offset, d}
-     
-    :ets.insert(send_queue, {send_counter, {conn_id, data}})
-    insert_chunks(send_queue, {send_counter + 1, {conn_id, offset + 800, rest}})
-  end
-
   def insert_chunks(send_queue, {send_counter, {conn_id, offset, d}}) do
-    data = ServerSess.encode_cmd {:con_data, conn_id, offset, d}
+    channel_size = 1024
 
-    if byte_size(data) > 1000 do
-      throw({:oversize, byte_size(data), d})
-    end
+    {d, rest} =
+      case d do
+        <<d::binary-size(channel_size), rest::binary>> ->
+          {d, rest}
+
+        _ ->
+          {d, ""}
+      end
+
+    data = ServerSess.encode_cmd({:con_data, conn_id, offset, d})
 
     :ets.insert(send_queue, {send_counter, {conn_id, data}})
 
-    send_counter + 1
+    insert_chunks(send_queue, {send_counter + 1, {conn_id, offset + channel_size, rest}})
   end
 
   def insert_appdata(send_queue, {send_counter, data}) do
-
     :ets.insert(send_queue, {send_counter, {0, data}})
 
     send_counter + 1

@@ -80,6 +80,8 @@ defmodule UdpChannel do
   def loop(state) do
     state = receive_loop(state.udpsocket, state)
 
+    #500 ticks per second
+    state = dispatch_packets(state.remote_udp_endpoint, state)
     state = dispatch_packets(state.remote_udp_endpoint, state)
 
     __MODULE__.loop(state)
@@ -306,7 +308,7 @@ defmodule UdpChannel do
     now = :erlang.timestamp()
 
     state =
-      if state.last_send == :"$end_of_table" and :timer.now_diff(now, last_reset) > 250_000 do
+      if state.last_send == :"$end_of_table" and :timer.now_diff(now, last_reset) > 150_000 do
         #IO.inspect({__MODULE__, :reset, :ets.first(state.send_queue)})
         %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
       else
