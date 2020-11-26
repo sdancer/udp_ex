@@ -221,7 +221,8 @@ defmodule ServerSess do
         state
 
         #FIXME: add offset
-      {:rm_con, conn_id, _offset} ->
+      {:rm_con, conn_id, offset} ->
+        IO.inspect "received remove conn #{conn_id} #{offset}"
         # kill a connection
         remove_conn(conn_id, state)
     end

@@ -22,7 +22,6 @@ defmodule UdpChannel do
   def stats_inc_dup_packets(state), do: :counters.add(state.stat_counters, 3, 1)
   def stats_inc_ticks(state), do: :counters.add(state.stat_counters, 4, 1)
   def stats_inc_sent_acks(state), do: :counters.add(state.stat_counters, 5, 1)
-
   def stats_inc_recv_acks(state), do: :counters.add(state.stat_counters, 6, 1)
 
 
@@ -269,42 +268,10 @@ defmodule UdpChannel do
               end
 
               stats_inc_dup_packets(state)
+	      #IO.inspect packet_id
           end
 
           state = Map.put(state, :buckets, nbuckets)
-
-          # if congestion too high, make the retry req 1 s
-          state =
-            if :os.system_time(1000) - state.last_req_again > 1_000 do
-              # IO.inspect state.buckets
-              # IO.inspect {:req_again, now,
-              #         Process.get(:dups, 0),
-              #         Process.get(:news, 0)
-              #         }
-              case state.buckets do
-                [{_x, 0}] ->
-                  :nothing
-
-                other ->
-                  {last, start} = :lists.last(other)
-
-                  last =
-                    if start != 0 do
-                      0
-                    else
-                      last + 1
-                    end
-
-                  last
-
-                  # req_again(state, last)
-              end
-
-              state = Map.put(state, :last_req_again, :os.system_time(1000))
-              state
-            else
-              state
-            end
 
           # state = send_buckets(state)
 
@@ -326,8 +293,8 @@ defmodule UdpChannel do
     ack_list = Process.get(:ack_list, <<>>)
 
     ack_list =
-      if byte_size(ack_list) > 8 * 13 do
-        :binary.part(ack_list, 0, 13 * 8)
+      if byte_size(ack_list) > 8 * 20 do
+        :binary.part(ack_list, 0, 20 * 8)
       else
         ack_list
       end
@@ -433,11 +400,13 @@ defmodule UdpChannel do
 
     state =
       cond do
-        :timer.now_diff(now, last_reset) < 300_000 ->
+       :"$end_of_table" != state.last_send and :timer.now_diff(now, last_reset) < 1_000_000 ->
+          state
+       :timer.now_diff(now, last_reset) < 50_000 ->
           state
 
         true ->
-          # IO.inspect({__MODULE__, :reset, :ets.first(state.send_queue)})
+          #IO.inspect({__MODULE__, :reset, :ets.first(state.send_queue)})
           %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
       end
 
