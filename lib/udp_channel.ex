@@ -22,6 +22,7 @@ defmodule UdpChannel do
   def stats_inc_dup_packets(state), do: :counters.add state.stat_counters, 3, 1 
   def stats_inc_ticks(state), do: :counters.add state.stat_counters, 4, 1 
   def stats5(state) do
+    seconds = 1
     if :os.system_time(1000) - Process.get(:prev_stats, 0) > 1000 do
     Process.put :prev_stats, :os.system_time(1000)
     newpackets = :counters.get state.stat_counters, 2
@@ -32,9 +33,9 @@ defmodule UdpChannel do
 
     IO.inspect(
       {:stats5, [
-       ticks: ticks / 5,
-       new: (newpackets - oldnew) / 5,
-       dup: (dups - olddups) / 5,
+       ticks: ticks / seconds,
+       new: (newpackets - oldnew) / seconds,
+       dup: (dups - olddups) / seconds,
        ]}
     )
 
@@ -341,12 +342,12 @@ defmodule UdpChannel do
     last_reset = Map.get(state, :last_reset, {0, 0, 0})
     now = :erlang.timestamp()
 
-    state =
-      if state.last_send == :"$end_of_table" and :timer.now_diff(now, last_reset) > 150_000 do
+    state = cond do
+     :timer.now_diff(now, last_reset) < 200_000 -> 
+        state
+      true -> 
         #IO.inspect({__MODULE__, :reset, :ets.first(state.send_queue)})
         %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
-      else
-        state
       end
 
     if state.last_send < state.send_counter do
