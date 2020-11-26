@@ -300,6 +300,10 @@ defmodule UdpChannel do
   end
 
   def send_acks(seq_id, state = %{remote_udp_endpoint: nil}) do
+    state
+  end
+ 
+  def send_acks(seq_id, state = %{}) do
     ack_list = Process.get(:ack_list, <<>>)
 
     ack_list =
