@@ -12,27 +12,50 @@ defmodule PacketQueue do
     send_counter + 1
   end
 
+  def crystalize_from_smalls_buffer(send_queue, send_counter) do
+    conns_small_buffer = Process.get :conns_small_buffer, %{}
+	
+    case Map.keys(conns_small_buffer) do
+      [] -> 
+        send_counter
+
+      [conn_id | _ ] ->
+        {offset, d} = Map.get conns_small_buffer, conn_id, nil 
+        conns_sb = Map.delete conns_small_buffer, conn_id 
+	Process.put :conns_small_buffer, conns_sb
+
+        data = ServerSess.encode_cmd({:con_data, conn_id, offset, d})
+
+        :ets.insert(send_queue, {send_counter, {conn_id, data}})
+
+        send_counter + 1
+    end
+  end
+
   def insert_chunks(send_queue, {send_counter, {conn_id, offset, ""}}) do
     send_counter
   end
 
   def insert_chunks(send_queue, {send_counter, {conn_id, offset, d}}) do
-    channel_size = 1024
+    channel_size = 1440 
 
-    {d, rest} =
-      case d do
+    case d do
         <<d::binary-size(channel_size), rest::binary>> ->
-          {d, rest}
+          data = ServerSess.encode_cmd({:con_data, conn_id, offset, d})
 
+          :ets.insert(send_queue, {send_counter, {conn_id, data}})
+
+          insert_chunks(send_queue, {send_counter + 1, {conn_id, offset + channel_size, rest}})
         _ ->
-          {d, ""}
-      end
+	  conns_small_buffer = Process.get :conns_small_buffer, %{}
+	 
+	  conns_small_buffer = Map.put conns_small_buffer, conn_id, {offset, d}
 
-    data = ServerSess.encode_cmd({:con_data, conn_id, offset, d})
+          Process.put :conns_small_buffer, conns_small_buffer 
 
-    :ets.insert(send_queue, {send_counter, {conn_id, data}})
+	  send_counter
 
-    insert_chunks(send_queue, {send_counter + 1, {conn_id, offset + channel_size, rest}})
+    end
   end
 
   def insert_appdata(send_queue, {send_counter, data}) do

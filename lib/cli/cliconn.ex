@@ -45,10 +45,10 @@ defmodule CliConn do
   end
 
   def handle_info({:close_conn, offset}, state = %{sent: sent}) do
-    if state.sent == offset do
+    if state.sent >= offset do
       IO.inspect({__MODULE__, :close_conn, sent})
       :gen_tcp.close(state.socket)
-      send(state.session, {:tcp_closed, self()})
+      send(state.session, {:tcp_closed, self(), offset})
       {:stop, :normal, state}
     else
       IO.inspect({__MODULE__, :ignoring_close, offset, sent})
@@ -74,10 +74,10 @@ defmodule CliConn do
         state
       end
 
-    if state.sent == state[:close_at] do
+    if state.sent >= state[:close_at] do
       IO.inspect({__MODULE__, :close_reached, state.sent})
       :gen_tcp.close(state.socket)
-      send(state.session, {:tcp_closed, self()})
+      send(state.session, {:tcp_closed, self(), state[:close_at] })
       {:stop, :normal, state}
     else
       {:noreply, state}

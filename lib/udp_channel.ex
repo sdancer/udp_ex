@@ -152,7 +152,15 @@ defmodule UdpChannel do
 
       {:queue_data, {:con_data, conn_id, offset, send_bytes}} ->
         # IO.inspect({:queueing_data, {:con_data, conn_id, offset, send_bytes}})
-
+	conns_small_buffer = Process.get :conns_small_buffer, %{}
+        {offset, send_bytes} = case (Map.get conns_small_buffer, conn_id, nil ) do
+	   nil ->
+	     {offset, send_bytes}
+           {offset, d}  -> 
+	     {offset, d <> send_bytes}
+	end
+     
+ 
         send_counter =
           PacketQueue.insert_chunks(
             state.send_queue,
@@ -410,6 +418,11 @@ defmodule UdpChannel do
           %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
       end
 
+    state = if state.last_send >= state.send_counter do
+        send_counter = PacketQueue.crystalize_from_smalls_buffer(state.send_queue, state.send_counter) 
+         %{state | last_send: state.send_counter, send_counter: send_counter}
+       else state end 
+ 
     if state.last_send < state.send_counter do
       case :ets.lookup(state.send_queue, state.last_send) do
         [{packet_id, {_conn_id, data}}] ->
