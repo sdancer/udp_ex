@@ -24,7 +24,6 @@ defmodule UdpChannel do
   def stats_inc_sent_acks(state), do: :counters.add(state.stat_counters, 5, 1)
   def stats_inc_recv_acks(state), do: :counters.add(state.stat_counters, 6, 1)
 
-
   def stats5(state) do
     seconds = 1
 
@@ -44,18 +43,16 @@ defmodule UdpChannel do
       recv_acks = :counters.get(state.stat_counters, 6)
       :counters.put(state.stat_counters, 6, 0)
 
-
       {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
-
 
       IO.inspect(
         {:stats5,
          [
-	   queue: pressure,
+           queue: pressure,
            ticks: ticks / seconds,
            new: (newpackets - oldnew) / seconds,
            dup: (dups - olddups) / seconds,
-	   acks: { recv_acks, sent_acks},
+           acks: {recv_acks, sent_acks}
          ]}
       )
 
@@ -139,7 +136,6 @@ defmodule UdpChannel do
     state = dispatch_packets(state.remote_udp_endpoint, state)
     state = dispatch_packets(state.remote_udp_endpoint, state)
 
-
     __MODULE__.loop(state)
   end
 
@@ -155,17 +151,19 @@ defmodule UdpChannel do
 
       {:queue_data, {:con_data, conn_id, offset, send_bytes}} ->
         # IO.inspect({:queueing_data, {:con_data, conn_id, offset, send_bytes}})
-	conns_small_buffer = Process.get :conns_small_buffer, %{}
+        conns_small_buffer = Process.get(:conns_small_buffer, %{})
 
-        {offset, send_bytes} = case (Map.get conns_small_buffer, conn_id, nil ) do
-	   nil ->
-	     {offset, send_bytes}
-           {prev_offset, d}  -> 
-	     {prev_offset, d <> send_bytes}
-	end
- 
-        conns_sb = Map.delete conns_small_buffer, conn_id 
-	Process.put :conns_small_buffer, conns_sb
+        {offset, send_bytes} =
+          case Map.get(conns_small_buffer, conn_id, nil) do
+            nil ->
+              {offset, send_bytes}
+
+            {prev_offset, d} ->
+              {prev_offset, d <> send_bytes}
+          end
+
+        conns_sb = Map.delete(conns_small_buffer, conn_id)
+        Process.put(:conns_small_buffer, conns_sb)
 
         send_counter =
           PacketQueue.insert_chunks(
@@ -282,7 +280,7 @@ defmodule UdpChannel do
               end
 
               stats_inc_dup_packets(state)
-	      #IO.inspect packet_id
+              # IO.inspect packet_id
           end
 
           state = Map.put(state, :buckets, nbuckets)
@@ -302,7 +300,7 @@ defmodule UdpChannel do
   def send_acks(seq_id, state = %{remote_udp_endpoint: nil}) do
     state
   end
- 
+
   def send_acks(seq_id, state = %{}) do
     ack_list = Process.get(:ack_list, <<>>)
 
@@ -327,21 +325,24 @@ defmodule UdpChannel do
 
         # IO.inspect({"sending buckets", Enum.count(b)})
 
-        data =
-          <<state.session_id::64-little, 100, 0::64-little, 0::32-little,
-            ack_list::binary>>
+        data = <<state.session_id::64-little, 100, 0::64-little, 0::32-little, ack_list::binary>>
 
         key = get_key()
 
         sdata = :crypto.exor(data, :binary.part(key, 0, byte_size(data)))
 
-        :ok =
+        res =
           :gen_udp.send(
             state.udpsocket,
             host,
             port,
             sdata
           )
+
+        case res do
+          {:error, :eagain} -> nil
+          :ok -> nil
+        end
 
         stats_inc_sent_acks(state)
 
@@ -414,21 +415,27 @@ defmodule UdpChannel do
 
     state =
       cond do
-       :"$end_of_table" != state.last_send and :timer.now_diff(now, last_reset) < 1_000_000 ->
+        :"$end_of_table" != state.last_send and :timer.now_diff(now, last_reset) < 1_000_000 ->
           state
-       :timer.now_diff(now, last_reset) < 50_000 ->
+
+        :timer.now_diff(now, last_reset) < 50_000 ->
           state
 
         true ->
-          #IO.inspect({__MODULE__, :reset, :ets.first(state.send_queue)})
+          # IO.inspect({__MODULE__, :reset, :ets.first(state.send_queue)})
           %{state | last_reset: now, last_send: :ets.first(state.send_queue)}
       end
 
-    state = if state.last_send >= state.send_counter do
-        send_counter = PacketQueue.crystalize_from_smalls_buffer(state.send_queue, state.send_counter) 
-         %{state | last_send: state.send_counter, send_counter: send_counter}
-       else state end 
- 
+    state =
+      if state.last_send >= state.send_counter do
+        send_counter =
+          PacketQueue.crystalize_from_smalls_buffer(state.send_queue, state.send_counter)
+
+        %{state | last_send: state.send_counter, send_counter: send_counter}
+      else
+        state
+      end
+
     if state.last_send < state.send_counter do
       case :ets.lookup(state.send_queue, state.last_send) do
         [{packet_id, {_conn_id, data}}] ->

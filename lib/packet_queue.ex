@@ -37,7 +37,7 @@ defmodule PacketQueue do
   end
 
   def insert_chunks(send_queue, {send_counter, {conn_id, offset, d}}) do
-    channel_size = 1440 
+    channel_size = 1440
 
     case d do
         <<d::binary-size(channel_size), rest::binary>> ->
