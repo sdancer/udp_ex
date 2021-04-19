@@ -24,8 +24,13 @@ defmodule CliConn do
           get_original_destionation(clientSocket)
 
         :sock5 ->
-          {d, p} = sock5_handshake(clientSocket)
+          {cli_type, d, p} = sock5_handshake(clientSocket)
+	  case cli_type do
+	    :socks5 ->
           sock5_notify_connected(clientSocket)
+	    :https ->
+	    https_notify_connected(clientSocket)
+	    end
           {d, p}
       end
 
@@ -116,8 +121,28 @@ defmodule CliConn do
     end
   end
 
+def http_handshake(clientSocket) do
+    {:ok, res} = :gen_tcp.recv(clientSocket, 0)
+res = :binary.list_to_bin res
+
+'NECT repo.hex.pm:443 HTTP/1.1\r\ncontent-length: 0\r\nte: \r\nhost: repo.hex.pm\r\npragma: no-cache\r\nconnection: keep-alive\r\nProxy-Connection:  Keep-Alive\r\n\r\n'
+[[_, host, port]] = Regex.scan ~r/NECT (.*):(.*) HTTP/, res
+IO.inspect {host, String.to_integer(port)}
+{:https, host, String.to_integer(port)}
+end
   def sock5_handshake(clientSocket) do
-    {:ok, [5, 1, 0]} = :gen_tcp.recv(clientSocket, 3)
+    res = :gen_tcp.recv(clientSocket, 3)
+
+case res do
+{:ok, [5, 1, 0]} ->
+sock5_handshake_1(clientSocket)
+{:ok, 'CON'} ->
+http_handshake(clientSocket)
+end
+end
+
+def sock5_handshake_1(clientSocket) do
+   # {:ok, [5, 1, 0]} = :gen_tcp.recv(clientSocket, 3)
 
     :gen_tcp.send(clientSocket, <<5, 0>>)
 
@@ -134,7 +159,12 @@ defmodule CliConn do
           {addr, port, v, <<5, 1, 0, 1, a, b, c, d, port::integer-size(16)>>}
       end
 
-    {destAddr, destPort}
+    {:socks5, destAddr, destPort}
+  end
+
+  def https_notify_connected(clientSocket) do
+    # custom version, for fast hooks
+    :gen_tcp.send(clientSocket, "HTTP/1.1 200 OK\r\n\r\n")
   end
 
   def sock5_notify_connected(clientSocket) do

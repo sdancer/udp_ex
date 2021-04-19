@@ -455,7 +455,7 @@ defmodule UdpChannel do
 
           # IO.inspect {host, :inet.ntoa(host)}
 
-          :ok = :gen_udp.send(state.udpsocket, host, port, sdata)
+          :gen_udp.send(state.udpsocket, host, port, sdata)
 
         [] ->
           nil
