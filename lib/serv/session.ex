@@ -170,6 +170,13 @@ defmodule ServerSess do
 
       {:rm_con, conn_id, offset} ->
         <<3, conn_id::32-little, offset::64-little>>
+
+      {:ping, time} ->
+        <<4, time::64-little>>
+
+      {:pong, time} ->
+        <<5, time::64-little>>
+
       _ ->
 	IO.inspect {:encode_cmd_error, data}
     end
@@ -185,6 +192,13 @@ defmodule ServerSess do
 
       <<3, conn_id::32-little, offset::64-little>> ->
         {:rm_con, conn_id, offset}
+
+      <<4, time::64-little>> ->
+        {:ping, time} 
+        
+      <<5, time::64-little>> ->
+        {:pong, time} 
+
       _ ->
 	IO.inspect {:decode_cmd_error, data}
     end
@@ -229,6 +243,10 @@ defmodule ServerSess do
         IO.inspect "received remove conn #{conn_id} #{offset}"
         # kill a connection
         close_conn(conn_id, offset, state)
+
+      {:ping, time} ->
+        #send pong
+        state
     end
   end
 

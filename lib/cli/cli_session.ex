@@ -21,7 +21,7 @@ defmodule ClientSess do
     {:ok, udpchannel, socket, send_queue} =
       UdpChannel.client(args.remotehost, portnum, session_id)
 
-    Mitme.Acceptor.start_link(%{port: 9081, module: CliConn, session: self()})
+    Mitme.Acceptor.start_link(%{port: args.port, module: CliConn, session: self()})
  
     state = %{
       remotehost: remotehost,
@@ -40,6 +40,9 @@ defmodule ClientSess do
 
   def handle_info(:tick, state) do
     :erlang.send_after(5000, self(), :tick)
+
+    UdpChannel.queue_app(state.udpchannel, ServerSess.encode_cmd({:ping, :os.system_time(1000)}))
+
 
     # state =
     #  if :os.system_time(1000) - state.lastpong > 30000 do
