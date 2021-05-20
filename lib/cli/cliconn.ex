@@ -136,6 +136,8 @@ end
 case res do
 {:ok, [5, 1, 0]} ->
 sock5_handshake_1(clientSocket)
+{:ok, [5, 2, 0]} ->
+sock5_handshake_1(clientSocket)
 {:ok, 'CON'} ->
 http_handshake(clientSocket)
 end

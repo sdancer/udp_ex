@@ -36,7 +36,7 @@ defmodule UdpEx do
           {DynamicSupervisor, strategy: :one_for_one, name: MyApp.DynamicSupervisor},
           %{
             id: ClientSess,
-            start: {ClientSess, :start_link, [%{remotehost: remotehost}]}
+            start: {ClientSess, :start_link, [%{remotehost: remotehost, port: 9081}]}
           },
         ]
 
