@@ -28,21 +28,23 @@ defmodule UdpEx do
       !!:os.getenv('CLIENT') ->
         IO.inspect("initializing client")
 
-        #remotehost = "35.221.206.207"
+        # remotehost = "35.221.206.207"
 
-        remotehost = "95.217.38.33"
+        remotehost = :os.getenv('SERVER_ADDR') || "95.217.38.33"
+
+        listen_port =
+          :os.getenv('LOCAL_PORT', '9081') |> :binary.list_to_bin() |> String.to_integer()
 
         children = [
           {DynamicSupervisor, strategy: :one_for_one, name: MyApp.DynamicSupervisor},
           %{
             id: ClientSess,
-            start: {ClientSess, :start_link, [%{remotehost: remotehost, port: 9081}]}
-          },
+            start: {ClientSess, :start_link, [%{remotehost: remotehost, port: listen_port}]}
+          }
         ]
 
         Supervisor.start_link(children, strategy: :one_for_one)
 
-        
       true ->
         UdpEx.Supervisor.start_link([])
     end

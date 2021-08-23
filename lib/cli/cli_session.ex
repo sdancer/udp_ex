@@ -22,7 +22,7 @@ defmodule ClientSess do
       UdpChannel.client(args.remotehost, portnum, session_id)
 
     Mitme.Acceptor.start_link(%{port: args.port, module: CliConn, session: self()})
- 
+
     state = %{
       remotehost: remotehost,
       remoteport: portnum,
@@ -43,7 +43,6 @@ defmodule ClientSess do
 
     UdpChannel.queue_app(state.udpchannel, ServerSess.encode_cmd({:ping, :os.system_time(1000)}))
 
-
     # state =
     #  if :os.system_time(1000) - state.lastpong > 30000 do
     #    IO.puts("refreshing_udpsocket")
@@ -63,12 +62,12 @@ defmodule ClientSess do
     #  <<curtime::64-little>>
     # )
 
-    #print_stats(state)
+    # print_stats(state)
 
     {:noreply, state}
   end
 
-   def handle_info({:ssl_closed, _}, state) do
+  def handle_info({:ssl_closed, _}, state) do
     {:noreply, state}
   end
 
@@ -120,7 +119,10 @@ defmodule ClientSess do
       {_, %{conn_id: conn_id}} ->
         IO.inspect({:tcp_closed, conn_id, sent_bytes})
 
-        UdpChannel.queue_app(state.udpchannel, ServerSess.encode_cmd({:rm_con, conn_id, sent_bytes}))
+        UdpChannel.queue_app(
+          state.udpchannel,
+          ServerSess.encode_cmd({:rm_con, conn_id, sent_bytes})
+        )
 
         tcp_procs = Map.delete(state.tcp_procs, Conn_id)
         state = %{state | tcp_procs: tcp_procs}

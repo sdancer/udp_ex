@@ -25,12 +25,15 @@ defmodule CliConn do
 
         :sock5 ->
           {cli_type, d, p} = sock5_handshake(clientSocket)
-	  case cli_type do
-	    :socks5 ->
-          sock5_notify_connected(clientSocket)
-	    :https ->
-	    https_notify_connected(clientSocket)
-	    end
+
+          case cli_type do
+            :socks5 ->
+              sock5_notify_connected(clientSocket)
+
+            :https ->
+              https_notify_connected(clientSocket)
+          end
+
           {d, p}
       end
 
@@ -82,7 +85,7 @@ defmodule CliConn do
     if state.sent >= state[:close_at] do
       IO.inspect({__MODULE__, :close_reached, state.sent})
       :gen_tcp.close(state.socket)
-      send(state.session, {:tcp_closed, self(), state[:close_at] })
+      send(state.session, {:tcp_closed, self(), state[:close_at]})
       {:stop, :normal, state}
     else
       {:noreply, state}
@@ -121,30 +124,33 @@ defmodule CliConn do
     end
   end
 
-def http_handshake(clientSocket) do
+  def http_handshake(clientSocket) do
     {:ok, res} = :gen_tcp.recv(clientSocket, 0)
-res = :binary.list_to_bin res
+    res = :binary.list_to_bin(res)
 
-'NECT repo.hex.pm:443 HTTP/1.1\r\ncontent-length: 0\r\nte: \r\nhost: repo.hex.pm\r\npragma: no-cache\r\nconnection: keep-alive\r\nProxy-Connection:  Keep-Alive\r\n\r\n'
-[[_, host, port]] = Regex.scan ~r/NECT (.*):(.*) HTTP/, res
-IO.inspect {host, String.to_integer(port)}
-{:https, host, String.to_integer(port)}
-end
+    'NECT repo.hex.pm:443 HTTP/1.1\r\ncontent-length: 0\r\nte: \r\nhost: repo.hex.pm\r\npragma: no-cache\r\nconnection: keep-alive\r\nProxy-Connection:  Keep-Alive\r\n\r\n'
+    [[_, host, port]] = Regex.scan(~r/NECT (.*):(.*) HTTP/, res)
+    IO.inspect({host, String.to_integer(port)})
+    {:https, host, String.to_integer(port)}
+  end
+
   def sock5_handshake(clientSocket) do
     res = :gen_tcp.recv(clientSocket, 3)
 
-case res do
-{:ok, [5, 1, 0]} ->
-sock5_handshake_1(clientSocket)
-{:ok, [5, 2, 0]} ->
-sock5_handshake_1(clientSocket)
-{:ok, 'CON'} ->
-http_handshake(clientSocket)
-end
-end
+    case res do
+      {:ok, [5, 1, 0]} ->
+        sock5_handshake_1(clientSocket)
 
-def sock5_handshake_1(clientSocket) do
-   # {:ok, [5, 1, 0]} = :gen_tcp.recv(clientSocket, 3)
+      {:ok, [5, 2, 0]} ->
+        sock5_handshake_1(clientSocket)
+
+      {:ok, 'CON'} ->
+        http_handshake(clientSocket)
+    end
+  end
+
+  def sock5_handshake_1(clientSocket) do
+    # {:ok, [5, 1, 0]} = :gen_tcp.recv(clientSocket, 3)
 
     :gen_tcp.send(clientSocket, <<5, 0>>)
 

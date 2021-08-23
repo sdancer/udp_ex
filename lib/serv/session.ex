@@ -134,7 +134,7 @@ defmodule ServerSess do
 
         {:tcp_closed, conn_id, offset} ->
           # notify the other side
-          #IO.inspect({__MODULE__, :conn_closed, conn_id})
+          # IO.inspect({__MODULE__, :conn_closed, conn_id})
           state = remove_conn(conn_id, state)
 
           UdpChannel.queue_app(state.channel, encode_cmd({:rm_con, conn_id, offset}))
@@ -178,7 +178,7 @@ defmodule ServerSess do
         <<5, time::64-little>>
 
       _ ->
-	IO.inspect {:encode_cmd_error, data}
+        IO.inspect({:encode_cmd_error, data})
     end
   end
 
@@ -194,13 +194,13 @@ defmodule ServerSess do
         {:rm_con, conn_id, offset}
 
       <<4, time::64-little>> ->
-        {:ping, time} 
-        
+        {:ping, time}
+
       <<5, time::64-little>> ->
-        {:pong, time} 
+        {:pong, time}
 
       _ ->
-	IO.inspect {:decode_cmd_error, data}
+        IO.inspect({:decode_cmd_error, data})
     end
   end
 
@@ -209,7 +209,7 @@ defmodule ServerSess do
     # IO.inspect {:udp_data, Process.get {:series, :udp_data}}
 
     decoded = decode_cmd(data)
-    #IO.inspect {__MODULE__, :proccess_udp, decoded}
+    # IO.inspect {__MODULE__, :proccess_udp, decoded}
     case decoded do
       {:add_con, conn_id, dest_host, dest_port} ->
         # launch a connection
@@ -224,7 +224,7 @@ defmodule ServerSess do
         %{state | procs: procs}
 
       {:con_data, conn_id, offset, sent_bytes} ->
-        #IO.inspect {__MODULE__, :con_data, conn_id, offset, byte_size(sent_bytes)}
+        # IO.inspect {__MODULE__, :con_data, conn_id, offset, byte_size(sent_bytes)}
         # send bytes to the tcp conn
         proc = Map.get(state.procs, conn_id, nil)
 
@@ -238,14 +238,14 @@ defmodule ServerSess do
 
         state
 
-        #FIXME: add offset
+      # FIXME: add offset
       {:rm_con, conn_id, offset} ->
-        IO.inspect "received remove conn #{conn_id} #{offset}"
+        IO.inspect("received remove conn #{conn_id} #{offset}")
         # kill a connection
         close_conn(conn_id, offset, state)
 
       {:ping, time} ->
-        #send pong
+        # send pong
         state
     end
   end
@@ -255,26 +255,26 @@ defmodule ServerSess do
 
     case proc do
       %{proc: proc} ->
-        send proc, {:close_conn, offset} 
-	#should add a timer to kill it in 30 sec or so
+        send(proc, {:close_conn, offset})
+
+      # should add a timer to kill it in 30 sec or so
 
       _ ->
-        IO.inspect "close conn #{conn_id} not found"
+        IO.inspect("close conn #{conn_id} not found")
     end
 
     state
   end
-
 
   def remove_conn(conn_id, state) do
     proc = Map.get(state.procs, conn_id, nil)
 
     case proc do
       %{proc: proc} ->
-        Process.exit proc, :kill
+        Process.exit(proc, :kill)
 
       _ ->
-        IO.inspect "close conn #{conn_id} not found"
+        IO.inspect("close conn #{conn_id} not found")
     end
 
     procs = Map.delete(state.procs, conn_id)

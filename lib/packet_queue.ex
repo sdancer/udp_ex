@@ -13,16 +13,16 @@ defmodule PacketQueue do
   end
 
   def crystalize_from_smalls_buffer(send_queue, send_counter) do
-    conns_small_buffer = Process.get :conns_small_buffer, %{}
-	
+    conns_small_buffer = Process.get(:conns_small_buffer, %{})
+
     case Map.keys(conns_small_buffer) do
-      [] -> 
+      [] ->
         send_counter
 
-      [conn_id | _ ] ->
-        {offset, d} = Map.get conns_small_buffer, conn_id, nil 
-        conns_sb = Map.delete conns_small_buffer, conn_id 
-	Process.put :conns_small_buffer, conns_sb
+      [conn_id | _] ->
+        {offset, d} = Map.get(conns_small_buffer, conn_id, nil)
+        conns_sb = Map.delete(conns_small_buffer, conn_id)
+        Process.put(:conns_small_buffer, conns_sb)
 
         data = ServerSess.encode_cmd({:con_data, conn_id, offset, d})
 
@@ -40,27 +40,27 @@ defmodule PacketQueue do
     channel_size = 1440
 
     case d do
-        <<d::binary-size(channel_size), rest::binary>> ->
-          data = ServerSess.encode_cmd({:con_data, conn_id, offset, d})
+      <<d::binary-size(channel_size), rest::binary>> ->
+        data = ServerSess.encode_cmd({:con_data, conn_id, offset, d})
 
-          :ets.insert(send_queue, {send_counter, {conn_id, data}})
+        :ets.insert(send_queue, {send_counter, {conn_id, data}})
 
-          insert_chunks(send_queue, {send_counter + 1, {conn_id, offset + byte_size(d), rest}})
-        d ->
-	  conns_small_buffer = Process.get :conns_small_buffer, %{}
-	 
-	  conns_small_buffer = Map.put conns_small_buffer, conn_id, {offset, d}
+        insert_chunks(send_queue, {send_counter + 1, {conn_id, offset + byte_size(d), rest}})
 
-          Process.put :conns_small_buffer, conns_small_buffer 
+      d ->
+        conns_small_buffer = Process.get(:conns_small_buffer, %{})
 
-	  send_counter
+        conns_small_buffer = Map.put(conns_small_buffer, conn_id, {offset, d})
 
-          #data = ServerSess.encode_cmd({:con_data, conn_id, offset, d})
+        Process.put(:conns_small_buffer, conns_small_buffer)
 
-          #:ets.insert(send_queue, {send_counter, {conn_id, data}})
+        send_counter
 
-          #insert_chunks(send_queue, {send_counter + 1, {conn_id, offset + byte_size(d), ""}})
+        # data = ServerSess.encode_cmd({:con_data, conn_id, offset, d})
 
+        # :ets.insert(send_queue, {send_counter, {conn_id, data}})
+
+        # insert_chunks(send_queue, {send_counter + 1, {conn_id, offset + byte_size(d), ""}})
     end
   end
 
