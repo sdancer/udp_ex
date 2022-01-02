@@ -140,6 +140,9 @@ defmodule UdpChannel do
   end
 
   def receive_loop(socket, state) do
+
+    state = send_acks state
+
     receive do
       {:queue_app, data} ->
         # IO.inspect({:queueing_app_data, data})
@@ -299,7 +302,7 @@ defmodule UdpChannel do
 
           state = Map.put(state, :buckets, nbuckets)
 
-          send_acks(packet_id, state)
+          state = enqueue_ack(packet_id, state)
 
           %{state | remote_udp_endpoint: {host, port}}
 
@@ -311,12 +314,11 @@ defmodule UdpChannel do
     {:noreply, state}
   end
 
-  def send_acks(seq_id, state = %{remote_udp_endpoint: nil}) do
-    state
-  end
+  def enqueue_ack(seq_id, state = %{}) do
+    acks_time_delta = :os.system_time(1000) - Process.get(:acks_time, 0)
 
-  def send_acks(seq_id, state = %{}) do
     {base, _} = List.last(state.buckets)
+
     ack_list = Process.get(:ack_list_2, [])
 
     ack_list = Enum.filter(ack_list, fn x -> x > base end)
@@ -330,64 +332,96 @@ defmodule UdpChannel do
       end
 
     ack_list =
-      if seq_id in ack_list do
-        ack_list
-      else
-        ack_list ++ [seq_id]
+      cond do
+        seq_id in ack_list ->
+          #IO.inspect({"discarding ack", base, seq_id, acks_time_delta})
+          ack_list
+
+        seq_id < base ->
+          IO.inspect({"discarding ack", base, seq_id, acks_time_delta})
+          ack_list
+
+        seq_id == base ->
+          ack_list
+
+        true ->
+          ack_list ++ [seq_id]
       end
 
     Process.put(:ack_list_2, ack_list)
 
-    IO.inspect(ack_list)
+    acks_not_sent = Process.get(:acks_not_sent, 0)
+    Process.put(:acks_not_sent, acks_not_sent)
 
-    ack_list =
-      Enum.map(ack_list, fn x ->
-        <<x::64-little>>
-      end)
+    state
+  end
 
-    acks_time = :os.system_time(1000) - Process.get(:acks_time, 0)
+  def send_acks(state = %{remote_udp_endpoint: nil}) do
+    state
+  end
+
+  def send_acks(state = %{}) do
+    acks_time_delta = :os.system_time(1000) - Process.get(:acks_time, 0)
+
+    {base, _} = case List.last(state.buckets) do
+      nil ->
+        {0, 0}
+      x -> x
+    end
+
+    ack_list = Process.get(:ack_list_2, [])
+
+    ack_list = Enum.filter(ack_list, fn x -> x > base end)
+
+    Process.put(:ack_list_2, ack_list)
+
 
     acks_not_sent = Process.get(:acks_not_sent, 0)
 
-    acks_not_sent =
-      if ack_list != [] and (acks_not_sent >= 9 or acks_time > 50) do
-        Process.put(:acks_time, :os.system_time(1000))
-        {host, port} = state.remote_udp_endpoint
+    last_base = Process.get(:last_base, 0)
 
-        # IO.inspect({"sending buckets", Enum.count(b)})
+    if (last_base != base or ack_list != []) and (acks_not_sent >= 5 or acks_time_delta > 50) do
+      Process.put(:last_base, base)
 
-        data =
-          [
-            <<state.session_id::64-little, 100, base::64-little, 0::32-little>>,
-            ack_list
-          ]
-          |> IO.iodata_to_binary()
+      Process.put(:acks_time, :os.system_time(1000))
+      {host, port} = state.remote_udp_endpoint
 
-        key = get_key()
+      IO.inspect({"sending acks", base, last_base, ack_list})
 
-        sdata = :crypto.exor(data, :binary.part(key, 0, byte_size(data)))
+      ack_list =
+        Enum.map(ack_list, fn x ->
+          <<x::64-little>>
+        end)
 
-        res =
-          :gen_udp.send(
-            state.udpsocket,
-            host,
-            port,
-            sdata
-          )
+      data =
+        [
+          <<state.session_id::64-little, 100, base::64-little, 0::32-little>>,
+          ack_list
+        ]
+        |> IO.iodata_to_binary()
 
-        case res do
-          {:error, :eagain} -> nil
-          :ok -> nil
-        end
+      key = get_key()
 
-        stats_inc_sent_acks(state)
+      sdata = :crypto.exor(data, :binary.part(key, 0, byte_size(data)))
 
-        0
-      else
-        acks_not_sent + 1
+      res =
+        :gen_udp.send(
+          state.udpsocket,
+          host,
+          port,
+          sdata
+        )
+
+      case res do
+        {:error, :eagain} -> nil
+        :ok -> nil
       end
 
-    Process.put(:acks_not_sent, acks_not_sent)
+      Process.put(:acks_not_sent, 0)
+      stats_inc_sent_acks(state)
+    end
+
+    state
   end
 
   def send_buckets(state = %{remote_udp_endpoint: nil}) do
