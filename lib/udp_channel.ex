@@ -52,7 +52,7 @@ defmodule UdpChannel do
            ticks: ticks / seconds,
            new: (newpackets - oldnew) / seconds,
            dup: (dups - olddups) / seconds,
-           acks: {recv_acks, sent_acks}
+           acks_s_r: {recv_acks, sent_acks}
          ]}
       )
 
@@ -213,6 +213,20 @@ defmodule UdpChannel do
     proc_ack_list(rest, state)
   end
 
+  def delete_before(seq_id, state) do
+    case :ets.first(state.send_queue) do
+      :"$end_of_table" ->
+        :ok
+
+      x when x > seq_id ->
+        :ok
+
+      s ->
+        :ets.delete(state.send_queue, s)
+        delete_before(seq_id, state)
+    end
+  end
+
   def handle_info({:udp_data, host, port, bin}, state) do
     session_id = state.session_id
 
@@ -228,15 +242,17 @@ defmodule UdpChannel do
         # 100 acks list
         # 99 bucket list
         # 0 data
-        <<^session_id::64-little, 100, _ackmin::64-little, buckets_count::32-little,
+        <<^session_id::64-little, 100, ack_min::64-little, buckets_count::32-little,
           rest::binary>> ->
           stats_inc_recv_acks(state)
+          delete_before(ack_min, state)
           proc_ack_list(rest, state)
 
           # IO.inspect {:got_buckets, Enum.count(buckets)}
           %{state | remote_udp_endpoint: {host, port}}
 
-        <<^session_id::64-little, 99, _ackmin::64-little, buckets_count::32-little, rest::binary>> ->
+        <<^session_id::64-little, 99, _ackmin::64-little, buckets_count::32-little,
+          rest::binary>> ->
           buckets =
             if rest == "" do
               []
@@ -263,8 +279,6 @@ defmodule UdpChannel do
 
           # IO.inspect {:packet_data, is_new, packet_id, data}
 
-          send_acks(packet_id, state)
-
           case is_new do
             :ok ->
               # ack_data state, packet_id
@@ -285,7 +299,7 @@ defmodule UdpChannel do
 
           state = Map.put(state, :buckets, nbuckets)
 
-          # state = send_buckets(state)
+          send_acks(packet_id, state)
 
           %{state | remote_udp_endpoint: {host, port}}
 
@@ -302,30 +316,52 @@ defmodule UdpChannel do
   end
 
   def send_acks(seq_id, state = %{}) do
-    ack_list = Process.get(:ack_list, <<>>)
+    {base, _} = List.last(state.buckets)
+    ack_list = Process.get(:ack_list_2, [])
+
+    ack_list = Enum.filter(ack_list, fn x -> x > base end)
 
     ack_list =
-      if byte_size(ack_list) > 8 * 20 do
-        :binary.part(ack_list, 0, 20 * 8)
+      if Enum.count(ack_list) > 20 do
+        [_ | ack_list] = ack_list
+        ack_list
       else
         ack_list
       end
 
-    ack_list = <<seq_id::64-little>> <> ack_list
-    Process.put(:ack_list, ack_list)
+    ack_list =
+      if seq_id in ack_list do
+        ack_list
+      else
+        ack_list ++ [seq_id]
+      end
+
+    Process.put(:ack_list_2, ack_list)
+
+    IO.inspect(ack_list)
+
+    ack_list =
+      Enum.map(ack_list, fn x ->
+        <<x::64-little>>
+      end)
 
     acks_time = :os.system_time(1000) - Process.get(:acks_time, 0)
 
     acks_not_sent = Process.get(:acks_not_sent, 0)
 
     acks_not_sent =
-      if acks_not_sent >= 9 or acks_time > 100 do
+      if ack_list != [] and (acks_not_sent >= 9 or acks_time > 50) do
         Process.put(:acks_time, :os.system_time(1000))
         {host, port} = state.remote_udp_endpoint
 
         # IO.inspect({"sending buckets", Enum.count(b)})
 
-        data = <<state.session_id::64-little, 100, 0::64-little, 0::32-little, ack_list::binary>>
+        data =
+          [
+            <<state.session_id::64-little, 100, base::64-little, 0::32-little>>,
+            ack_list
+          ]
+          |> IO.iodata_to_binary()
 
         key = get_key()
 
