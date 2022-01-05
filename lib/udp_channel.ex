@@ -351,7 +351,7 @@ defmodule UdpChannel do
     Process.put(:ack_list_2, ack_list)
 
     acks_not_sent = Process.get(:acks_not_sent, 0)
-    Process.put(:acks_not_sent, acks_not_sent)
+    Process.put(:acks_not_sent, acks_not_sent + 1)
 
     state
   end
@@ -380,7 +380,7 @@ defmodule UdpChannel do
 
     last_base = Process.get(:last_base, 0)
 
-    if (last_base != base or ack_list != []) and (acks_not_sent >= 5 or acks_time_delta > 50) do
+    if (last_base != base or ack_list != []) and (acks_not_sent >= 9 or acks_time_delta > 50) do
       Process.put(:last_base, base)
 
       Process.put(:acks_time, :os.system_time(1000))
