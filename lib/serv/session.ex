@@ -79,7 +79,7 @@ defmodule ServerSess do
     end
 
     state =
-      if pressure <= 5000 do
+      if pressure <= 2000 do
         case state.reading_queue do
           [] ->
             state

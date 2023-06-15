@@ -76,7 +76,7 @@ defmodule CliConn do
   end
 
   def handle_info({:queue, offset, bin}, state) do
-     IO.inspect {__MODULE__, :queing_data, state.sent, offset, byte_size(bin)}
+     # IO.inspect {__MODULE__, :queing_data, state.sent, offset, byte_size(bin)}
      state =
       if offset == state.sent do
         :gen_tcp.send(state.socket, bin)

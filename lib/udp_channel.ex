@@ -133,9 +133,9 @@ defmodule UdpChannel do
 
     # 500 ticks per second
     state = dispatch_packets(state.remote_udp_endpoint, state)
-    state = dispatch_packets(state.remote_udp_endpoint, state)
-    state = dispatch_packets(state.remote_udp_endpoint, state)
-    state = dispatch_packets(state.remote_udp_endpoint, state)
+    #state = dispatch_packets(state.remote_udp_endpoint, state)
+    #state = dispatch_packets(state.remote_udp_endpoint, state)
+    #state = dispatch_packets(state.remote_udp_endpoint, state)
 
     __MODULE__.loop(state)
   end
