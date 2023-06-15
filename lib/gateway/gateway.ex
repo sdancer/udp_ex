@@ -63,7 +63,7 @@ defmodule Gateway do
         {:ok, port_num} =
           receive do
             {:port_num, pnum} ->
-              pnum
+              {:ok, pnum}
           after
             5000 ->
               {:error, :time_out}

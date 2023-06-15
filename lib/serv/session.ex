@@ -20,7 +20,7 @@ defmodule ServerSess do
           Enum.map(1..10, fn _ ->
             {:ok, channel, udpsocket, send_queue} = UdpChannel.server(0, session_id)
 
-            pnum = :inet.port(udpsocket)
+            {:ok, pnum} = :inet.port(udpsocket)
 
             %{channel: channel, udpsocket: udpsocket, send_queue: send_queue, port_num: pnum}
           end)
@@ -62,14 +62,17 @@ defmodule ServerSess do
   #  end
   # end
 
+  def pressure(state) do
+    Enum.sum(
+      Enum.map(state.channels, fn channel ->
+        {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(channel.send_queue))
+        pressure
+      end)
+    ) / 10
+  end
+
   def loop(state) do
-    pressure =
-      Enum.sum(
-        Enum.map(state.channels, fn channel ->
-          {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(channel.send_queue))
-          pressure
-        end) / 10
-      )
+    pressure = pressure(state)
 
     if :os.system_time(1000) - state.last_packet > 300_000 do
       throw(:time_out)
@@ -122,7 +125,7 @@ defmodule ServerSess do
           end
 
         {:tcp_data, conn_id, offset, d, proc} ->
-          {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+          pressure = pressure(state)
 
           reading_queue =
             if pressure > 5000 do
@@ -143,6 +146,11 @@ defmodule ServerSess do
           %{state | reading_queue: reading_queue}
 
         {:tcp_connected, conn_id} ->
+          IO.inspect "sending connected #{conn_id}"
+          channel = Enum.random(state.channels)
+
+          UdpChannel.queue_app(channel.channel, encode_cmd({:connected, conn_id}))
+
           # notify the other side
           state
 
@@ -180,6 +188,10 @@ defmodule ServerSess do
         dsize = byte_size(dest_host)
         <<1, conn_id::32-little, dsize, dest_host::binary-size(dsize), dest_port::16-little>>
 
+      {:connected, conn_id} ->
+        IO.inspect "encoding connected #{conn_id}"
+        <<6, conn_id::32-little>>
+
       {:con_data, conn_id, offset, send_bytes} ->
         <<2, conn_id::32-little, offset::64-little, send_bytes::binary>>
 
@@ -201,6 +213,10 @@ defmodule ServerSess do
     case data do
       <<1, conn_id::32-little, dsize::8, dest_host::binary-size(dsize), dest_port::16-little>> ->
         {:add_con, conn_id, dest_host, dest_port}
+
+      <<6, conn_id::32-little>> ->
+        IO.inspect({:connected, conn_id})
+        {:connected, conn_id}
 
       <<2, conn_id::32-little, offset::64-little, send_bytes::binary>> ->
         {:con_data, conn_id, offset, send_bytes}
@@ -261,6 +277,11 @@ defmodule ServerSess do
       {:ping, time} ->
         # send pong
         state
+
+      {:connected, conn_id} ->
+        IO.inspect "received connected #{conn_id}"
+        state
+ 
     end
   end
 

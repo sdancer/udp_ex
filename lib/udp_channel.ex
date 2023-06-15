@@ -45,7 +45,7 @@ defmodule UdpChannel do
 
       {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
 
-      IO.inspect(
+      entry =
         {:stats5,
          [
            queue: pressure,
@@ -54,7 +54,8 @@ defmodule UdpChannel do
            dup: (dups - olddups) / seconds,
            acks_s_r: {recv_acks, sent_acks}
          ]}
-      )
+
+      # IO.inspect(entry)
 
       Process.put(:old_stats, {0, newpackets, dups})
     end
@@ -140,8 +141,7 @@ defmodule UdpChannel do
   end
 
   def receive_loop(socket, state) do
-
-    state = send_acks state
+    state = send_acks(state)
 
     receive do
       {:queue_app, data} ->
@@ -254,8 +254,7 @@ defmodule UdpChannel do
           # IO.inspect {:got_buckets, Enum.count(buckets)}
           %{state | remote_udp_endpoint: {host, port}}
 
-        <<^session_id::64-little, 99, _ackmin::64-little, buckets_count::32-little,
-          rest::binary>> ->
+        <<^session_id::64-little, 99, _ackmin::64-little, buckets_count::32-little, rest::binary>> ->
           buckets =
             if rest == "" do
               []
@@ -334,7 +333,7 @@ defmodule UdpChannel do
     ack_list =
       cond do
         seq_id in ack_list ->
-          #IO.inspect({"discarding ack", base, seq_id, acks_time_delta})
+          # IO.inspect({"discarding ack", base, seq_id, acks_time_delta})
           ack_list
 
         seq_id < base ->
@@ -363,18 +362,20 @@ defmodule UdpChannel do
   def send_acks(state = %{}) do
     acks_time_delta = :os.system_time(1000) - Process.get(:acks_time, 0)
 
-    {base, _} = case List.last(state.buckets) do
-      nil ->
-        {0, 0}
-      x -> x
-    end
+    {base, _} =
+      case List.last(state.buckets) do
+        nil ->
+          {0, 0}
+
+        x ->
+          x
+      end
 
     ack_list = Process.get(:ack_list_2, [])
 
     ack_list = Enum.filter(ack_list, fn x -> x > base end)
 
     Process.put(:ack_list_2, ack_list)
-
 
     acks_not_sent = Process.get(:acks_not_sent, 0)
 
@@ -386,7 +387,7 @@ defmodule UdpChannel do
       Process.put(:acks_time, :os.system_time(1000))
       {host, port} = state.remote_udp_endpoint
 
-      IO.inspect({"sending acks", [base: base, last_base: last_base, ack_list: ack_list]})
+      # IO.inspect({"sending acks", [base: base, last_base: last_base, ack_list: ack_list]})
 
       ack_list =
         Enum.map(ack_list, fn x ->
