@@ -18,20 +18,23 @@ defmodule ClientSess do
     {:ok, portnum} = GatewayClient.newsession(args.remotehost, session_id)
 
     # {:ok, tcpuplink} = TcpUplink.start({remotehost, remoteport}, session_id, self())
-    {:ok, udpchannel, socket, send_queue} =
-      UdpChannel.client(args.remotehost, portnum, session_id)
+    channels =
+      Enum.map(portnum, fn portnum ->
+        {:ok, udpchannel, socket, send_queue} =
+          UdpChannel.client(args.remotehost, portnum, session_id)
+
+        %{channel: udpchannel, udpsocket: socket, send_queue: send_queue, port_num: portnum}
+      end)
 
     Mitme.Acceptor.start_link(%{port: args.port, module: CliConn, session: self()})
 
     state = %{
       remotehost: remotehost,
-      remoteport: portnum,
+      channels: channels,
       tcp_procs: %{},
       next_conn_id: 0,
-      udpchannel: udpchannel,
       session_id: session_id,
-      lastpong: :os.system_time(1000),
-      send_queue: send_queue
+      lastpong: :os.system_time(1000)
     }
 
     send(self(), :tick)
@@ -41,7 +44,9 @@ defmodule ClientSess do
   def handle_info(:tick, state) do
     :erlang.send_after(5000, self(), :tick)
 
-    UdpChannel.queue_app(state.udpchannel, ServerSess.encode_cmd({:ping, :os.system_time(1000)}))
+    Enum.each(state.channels, fn channel ->
+      UdpChannel.queue_app(channel.channel, ServerSess.encode_cmd({:ping, :os.system_time(1000)}))
+    end)
 
     # state =
     #  if :os.system_time(1000) - state.lastpong > 30000 do
@@ -78,8 +83,10 @@ defmodule ClientSess do
       {_, %{conn_id: conn_id}} ->
         IO.inspect({:sending_tcp_data, conn_id, byte_size(data)})
 
+        channel = Enum.random(state.channels)
+
         UdpChannel.queue_data(
-          state.udpchannel,
+          channel.channel,
           {:con_data, conn_id, offset, data}
         )
 
@@ -103,8 +110,10 @@ defmodule ClientSess do
         conn_id: conn_id
       })
 
+    channel = Enum.random(state.channels)
+
     UdpChannel.queue_app(
-      state.udpchannel,
+      channel.channel,
       ServerSess.encode_cmd({:add_con, conn_id, dest_host, dest_port})
     )
 
@@ -119,8 +128,10 @@ defmodule ClientSess do
       {_, %{conn_id: conn_id}} ->
         IO.inspect({:tcp_closed, conn_id, sent_bytes})
 
+        channel = Enum.random(state.channels)
+
         UdpChannel.queue_app(
-          state.udpchannel,
+          channel.channel,
           ServerSess.encode_cmd({:rm_con, conn_id, sent_bytes})
         )
 

@@ -69,7 +69,9 @@ defmodule Gateway do
               {:error, :time_out}
           end
 
-        :ssl.send(socket, <<"ok#", port_num::32-little>>)
+        channels_count = Enum.count(port_num)
+        port_nums = Enum.map(port_num, &<<&1::32-little>>) |> Enum.join("")
+        :ssl.send(socket, <<"ok#", channels_count::32-little, port_nums::binary>>)
         :timer.sleep(1000)
         :ssl.close(socket)
 
@@ -129,10 +131,18 @@ defmodule GatewayClient do
       <<"newsession#", byte_size(key)::32-little, key::binary, session_id::64-little>>
     )
 
-    {:ok, res = <<"ok#", port_num::32-little>>} = :ssl.recv(socket, 0)
+    {:ok, res = <<"ok#", ports::32-little, port_num::binary-size(ports * 4)>>} = :ssl.recv(socket, 0)
+
+    port_num = chunk(port_num, []) 
+
     IO.inspect(port_num)
     :ssl.close(socket)
 
     {:ok, port_num}
+  end
+
+  defp chunk(<<>>, acc), do: Enum.reverse(acc)
+  defp chunk(<<c::32-little, rest::binary>>, acc) do
+    chunk(rest, [c | acc])
   end
 end

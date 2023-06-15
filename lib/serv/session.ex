@@ -16,21 +16,24 @@ defmodule ServerSess do
 
     pid =
       spawn(fn ->
-        {:ok, channel, udpsocket, send_queue} = UdpChannel.server(0, session_id)
+
+        channels = Enum.map 1..10, fn ->
+          {:ok, channel, udpsocket, send_queue} = UdpChannel.server(0, session_id)
+ 
+          pnum = :inet.port(udpsocket)
+
+          %{channel: channel, udpsocket: udpsocket, send_queue: send_queue, port_num: pnum}
+        end
 
         state = %{
           procs: %{},
-          udpsocket: udpsocket,
-          channel: channel,
+          channels: channels,
           reading_queue: [],
           session: session_id,
-          send_queue: send_queue,
           last_packet: :os.system_time(1000)
         }
 
-        pnum = :inet.port(udpsocket)
-
-        send(parent, {:port_num, pnum})
+        send(parent, {:port_num, Enum.map(channels, & &1.port_num)})
 
         loop(state)
       end)
@@ -104,7 +107,10 @@ defmodule ServerSess do
             {conn_id, _} ->
               state = remove_conn(conn_id, state)
 
-              UdpChannel.queue_app(state.channel, encode_cmd({:rm_con, conn_id, 0}))
+              # pick a random channel
+              channel = Enum.random(state.channels)
+              
+              UdpChannel.queue_app(channel.channel, encode_cmd({:rm_con, conn_id, 0}))
 
               state
           end
@@ -124,7 +130,9 @@ defmodule ServerSess do
           # IO.inspect {__MODULE__, "tcp data", conn_id, state.send_counter, offset, byte_size(d)}
           # add to the udp list
 
-          UdpChannel.queue_data(state.channel, {:con_data, conn_id, offset, d})
+          channel = Enum.random(state.channels)
+             
+          UdpChannel.queue_data(channel.channel, {:con_data, conn_id, offset, d})
 
           %{state | reading_queue: reading_queue}
 
@@ -137,7 +145,9 @@ defmodule ServerSess do
           # IO.inspect({__MODULE__, :conn_closed, conn_id})
           state = remove_conn(conn_id, state)
 
-          UdpChannel.queue_app(state.channel, encode_cmd({:rm_con, conn_id, offset}))
+
+          channel = Enum.random(state.channels)
+          UdpChannel.queue_app(channel.channel, encode_cmd({:rm_con, conn_id, offset}))
 
           state
 
@@ -238,7 +248,6 @@ defmodule ServerSess do
 
         state
 
-      # FIXME: add offset
       {:rm_con, conn_id, offset} ->
         IO.inspect("received remove conn #{conn_id} #{offset}")
         # kill a connection
