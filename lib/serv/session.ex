@@ -255,7 +255,7 @@ defmodule ServerSess do
         %{state | procs: procs}
 
       {:con_data, conn_id, offset, sent_bytes} ->
-        IO.inspect {__MODULE__, :con_data, conn_id, offset, byte_size(sent_bytes)}
+        # IO.inspect {__MODULE__, :con_data, conn_id, offset, byte_size(sent_bytes)}
         # send bytes to the tcp conn
         proc = Map.get(state.procs, conn_id, nil)
 
