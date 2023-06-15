@@ -17,7 +17,7 @@ defmodule ServerSess do
     pid =
       spawn(fn ->
 
-        channels = Enum.map 1..10, fn ->
+        channels = Enum.map 1..10, fn(_) ->
           {:ok, channel, udpsocket, send_queue} = UdpChannel.server(0, session_id)
  
           pnum = :inet.port(udpsocket)
