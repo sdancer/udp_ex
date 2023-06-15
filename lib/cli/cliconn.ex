@@ -39,7 +39,7 @@ defmodule CliConn do
 
     # IO.inspect {__MODULE__, :got_socket_dest, destAddrBin, destPort}
 
-    :inet.setopts(clientSocket, [{:active, true}, :binary])
+    :inet.setopts(clientSocket, [{:active, false}, :binary])
 
     send(state.session, {:tcp_add, self(), destAddrBin, destPort})
 
@@ -49,6 +49,11 @@ defmodule CliConn do
         sent: 0
       })
 
+    {:noreply, state}
+  end
+
+  def handle_info(:connected, state) do
+    :inet.setopts(state.socket, [{:active, true}, :binary])
     {:noreply, state}
   end
 
@@ -65,13 +70,14 @@ defmodule CliConn do
     end
   end
 
-  def handle_info({:queue, offset, _bin}, state = %{sent: sent}) when offset < sent do
-    # IO.inspect {:discarted_queue_packet, offset, sent}
+  def handle_info({:queue, offset, bin}, state = %{sent: sent}) when offset < sent do
+    IO.inspect {:discarted_queue_packet, :offset, offset, :sent, sent, :size, byte_size(bin)}
     {:noreply, state}
   end
 
   def handle_info({:queue, offset, bin}, state) do
-    state =
+     IO.inspect {__MODULE__, :queing_data, state.sent, offset, byte_size(bin)}
+     state =
       if offset == state.sent do
         :gen_tcp.send(state.socket, bin)
         state = Map.merge(state, %{sent: offset + byte_size(bin)})

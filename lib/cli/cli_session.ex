@@ -147,7 +147,10 @@ defmodule ClientSess do
 
   def handle_info({:udp_channel_data, data}, state) do
     decoded = ServerSess.decode_cmd(data)
-    IO.inspect decoded
+    IO.inspect (case decoded do
+      {:con_data, x, y, z} -> {:con_data, x, y, byte_size(z)}
+      _ -> decoded
+    end)
     state = proc_udp_packet(decoded, state)
 
     {:noreply, state}
@@ -190,7 +193,7 @@ defmodule ClientSess do
     case proc do
       %{proc: pid} ->
         IO.inspect({__MODULE__, :connected, conn_id})
-        nil
+        send(pid, :connected)
 
       _ ->
         IO.inspect({__MODULE__, :PROC_NOT_FOUND, state.tcp_procs})

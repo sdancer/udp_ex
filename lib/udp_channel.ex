@@ -153,7 +153,7 @@ defmodule UdpChannel do
         receive_loop(socket, state)
 
       {:queue_data, {:con_data, conn_id, offset, send_bytes}} ->
-        # IO.inspect({:queueing_data, {:con_data, conn_id, offset, send_bytes}})
+        IO.inspect({:queueing_data, {:con_data, conn_id, offset, byte_size(send_bytes)}})
         conns_small_buffer = Process.get(:conns_small_buffer, %{})
 
         {offset, send_bytes} =
@@ -337,7 +337,7 @@ defmodule UdpChannel do
           ack_list
 
         seq_id < base ->
-          IO.inspect({"discarding ack", base, seq_id, acks_time_delta})
+          #IO.inspect({"discarding ack", base, seq_id, acks_time_delta})
           ack_list
 
         seq_id == base ->
