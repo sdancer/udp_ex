@@ -16,14 +16,14 @@ defmodule ServerSess do
 
     pid =
       spawn(fn ->
+        channels =
+          Enum.map(1..10, fn _ ->
+            {:ok, channel, udpsocket, send_queue} = UdpChannel.server(0, session_id)
 
-        channels = Enum.map 1..10, fn(_) ->
-          {:ok, channel, udpsocket, send_queue} = UdpChannel.server(0, session_id)
- 
-          pnum = :inet.port(udpsocket)
+            pnum = :inet.port(udpsocket)
 
-          %{channel: channel, udpsocket: udpsocket, send_queue: send_queue, port_num: pnum}
-        end
+            %{channel: channel, udpsocket: udpsocket, send_queue: send_queue, port_num: pnum}
+          end)
 
         state = %{
           procs: %{},
@@ -63,7 +63,13 @@ defmodule ServerSess do
   # end
 
   def loop(state) do
-    {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(state.send_queue))
+    pressure =
+      Enum.sum(
+        Enum.map(state.channels, fn channel ->
+          {:value, {:size, pressure}} = :lists.keysearch(:size, 1, :ets.info(channel.send_queue))
+          pressure
+        end) / 10
+      )
 
     if :os.system_time(1000) - state.last_packet > 300_000 do
       throw(:time_out)
@@ -109,7 +115,7 @@ defmodule ServerSess do
 
               # pick a random channel
               channel = Enum.random(state.channels)
-              
+
               UdpChannel.queue_app(channel.channel, encode_cmd({:rm_con, conn_id, 0}))
 
               state
@@ -131,7 +137,7 @@ defmodule ServerSess do
           # add to the udp list
 
           channel = Enum.random(state.channels)
-             
+
           UdpChannel.queue_data(channel.channel, {:con_data, conn_id, offset, d})
 
           %{state | reading_queue: reading_queue}
@@ -144,7 +150,6 @@ defmodule ServerSess do
           # notify the other side
           # IO.inspect({__MODULE__, :conn_closed, conn_id})
           state = remove_conn(conn_id, state)
-
 
           channel = Enum.random(state.channels)
           UdpChannel.queue_app(channel.channel, encode_cmd({:rm_con, conn_id, offset}))
