@@ -118,8 +118,8 @@ defmodule GatewayClient do
 
     IO.inspect("connecting to gw #{remote_host}")
 
-    {:ok, socket} = :ssl.connect(remote_host, 443, [])
-    :ssl.setopts(socket, [{:active, false}, :binary])
+    {:ok, socket} = :ssl.connect(remote_host, 443, [{:verify, :verify_none}])
+    :ssl.setopts(socket, [{:active, false}, :binary, ])
     key = "123"
 
     IO.inspect("connected")

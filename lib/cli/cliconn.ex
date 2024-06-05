@@ -128,7 +128,7 @@ defmodule CliConn do
     {:ok, res} = :gen_tcp.recv(clientSocket, 0)
     res = :binary.list_to_bin(res)
 
-    'NECT repo.hex.pm:443 HTTP/1.1\r\ncontent-length: 0\r\nte: \r\nhost: repo.hex.pm\r\npragma: no-cache\r\nconnection: keep-alive\r\nProxy-Connection:  Keep-Alive\r\n\r\n'
+    ~c"NECT repo.hex.pm:443 HTTP/1.1\r\ncontent-length: 0\r\nte: \r\nhost: repo.hex.pm\r\npragma: no-cache\r\nconnection: keep-alive\r\nProxy-Connection:  Keep-Alive\r\n\r\n"
     [[_, host, port]] = Regex.scan(~r/NECT (.*):(.*) HTTP/, res)
     IO.inspect({host, String.to_integer(port)})
     {:https, host, String.to_integer(port)}
@@ -142,9 +142,11 @@ defmodule CliConn do
         sock5_handshake_1(clientSocket)
 
       {:ok, [5, 2, 0]} ->
+        {:ok, _} = :gen_tcp.recv(clientSocket, 1)
+
         sock5_handshake_1(clientSocket)
 
-      {:ok, 'CON'} ->
+      {:ok, ~c"CON"} ->
         http_handshake(clientSocket)
     end
   end

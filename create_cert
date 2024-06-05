@@ -12,7 +12,7 @@ ls
 
 mv cakey.pem private
 
-secret
+#secret
 
 openssl genrsa -out rootca.key 2048
 
@@ -22,8 +22,10 @@ rm -fr inter_ca_demo
 
 cd ..
 
-mkdir inter_ca_demo
-cd inter_ca_demo
+# .......
+
+mkdir private 
+cd private
 mkdir root_ca inter_ca end_cert
 
 cd root_ca

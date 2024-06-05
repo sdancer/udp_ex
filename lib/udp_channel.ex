@@ -338,7 +338,7 @@ defmodule UdpChannel do
           ack_list
 
         seq_id < base ->
-          IO.inspect({"discarding ack", base, seq_id, acks_time_delta})
+          #IO.inspect({"discarding ack", base, seq_id, acks_time_delta})
           ack_list
 
         seq_id == base ->
@@ -386,7 +386,7 @@ defmodule UdpChannel do
       Process.put(:acks_time, :os.system_time(1000))
       {host, port} = state.remote_udp_endpoint
 
-      IO.inspect({"sending acks", [base: base, last_base: last_base, ack_list: ack_list]})
+      #IO.inspect({"sending acks", [base: base, last_base: last_base, ack_list: ack_list]})
 
       ack_list =
         Enum.map(ack_list, fn x ->
